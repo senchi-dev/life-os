@@ -209,3 +209,23 @@ button.cadd { min-height: 44px; min-width: 64px; }
 .cnotice { margin: 0; font-size: var(--fs-s); }
 button.cdelete { align-self: flex-start; min-height: 44px; color: var(--danger); border-color: var(--line); }
 button.cdelete.is-confirm { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+/* Review. Numbers in flat rows; accent unused here except focus. */
+main[data-view="review"] { padding-top: var(--s3); }
+.rhead { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.rhead h1 { margin: 0; min-width: 0; }
+.rsteps { display: flex; gap: var(--s1); flex: none; }
+button.rstep { padding: 0; font-size: var(--fs-l); line-height: 1; }
+button.rstep:disabled { opacity: 0.35; cursor: default; background: transparent; }
+.rrange { margin: var(--s1) 0 var(--s3); }
+.rrow { display: flex; align-items: baseline; gap: var(--s2); min-height: 44px; align-items: center; }
+.rlabel { flex: 1; min-width: 0; }
+.rval { flex: none; font-weight: 600; }
+.rsub { flex: none; min-width: 5.5rem; text-align: right; }
+.rflags { margin: -8px 0 var(--s2); font-size: var(--fs-s); }
+.rchange { margin: var(--s1) 0 var(--s2); }
+.rkept { display: flex; align-items: center; gap: var(--s2); }
+.rkept .chip { min-width: 56px; }
+.rprompts { display: flex; flex-direction: column; gap: var(--s3); padding-top: var(--s3); }
+.rprompt { display: flex; flex-direction: column; gap: var(--s2); }
+textarea.rarea { width: 100%; min-height: 96px; padding: var(--s2) var(--s3); line-height: 1.4; resize: vertical; }

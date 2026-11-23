@@ -1,4 +1,4 @@
-import { addDays, isoWeekday, weekStart as mondayOf } from './dates.js';
+import { addDays, isoWeekday, localDateKey, weekStart as mondayOf } from './dates.js';
 import { isDue, consistency28, weekHits } from './habits.js';
 import { sleepStats, waterTotalsByDay, DEFAULT_WEEKLY_PAGES, DEFAULT_WATER_TARGET_L } from './health.js';
 
@@ -14,11 +14,16 @@ export function reviewWeekStart(todayKey) {
 
 // Due days without any log. 'skipped' is a deliberate exemption, not a miss.
 // n_per_week habits have no fixed days, so they report no missed days.
+// Days before the habit existed (its created_at local date) are neither due nor missed.
+const createdKey = (habit) => (habit.created_at ? localDateKey(new Date(habit.created_at)) : null);
+
 function missStats(habit, logs, start) {
   if (habit.schedule_kind === 'n_per_week') return { missedDays: 0, missedTwice: 0 };
+  const born = createdKey(habit);
   const logged = new Set(logs.filter((l) => l.habit_id === habit.id).map((l) => l.date));
   let missedDays = 0, missedTwice = 0, run = 0;
   for (const d of weekKeys(start)) {
+    if (born && d < born) continue;
     const missed = isDue(habit, d) && !logged.has(d);
     if (missed) {
       missedDays++; run++;
@@ -34,7 +39,14 @@ export function weeklyReview({ weekStart, habits, habitLogs, sleep, water, daily
   const pagesTarget = settings?.weekly_pages ?? DEFAULT_WEEKLY_PAGES;
 
   const habitRows = activeHabits(habits).map((h) => {
-    const { hits, target: t } = weekHits(h, habitLogs, weekStart);
+    const w = weekHits(h, habitLogs, weekStart);
+    const born = createdKey(h);
+    let t = w.target;
+    if (born && h.schedule_kind !== 'n_per_week') {
+      const skipped = new Set(habitLogs.filter((l) => l.habit_id === h.id && l.status === 'skipped').map((l) => l.date));
+      t = weekKeys(weekStart).filter((d) => d >= born && isDue(h, d) && !skipped.has(d)).length;
+    }
+    const hits = w.hits;
     return {
       id: h.id, name: h.name, hits, target: t,
       consistency28: consistency28(h, habitLogs, weekEnd),

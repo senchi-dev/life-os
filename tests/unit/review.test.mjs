@@ -75,3 +75,23 @@ test('weekToDate counts today in target', () => {
   const none = weekToDate({ todayKey: '2026-11-25', habits: [], habitLogs: [], daily: [], settings });
   assert.equal(none.habitsPct, null);
 });
+
+test('habit created mid-week: days before created_at are not misses and not in target', () => {
+  const created = { ...habit, created_at: new Date(2026, 10, 18, 9, 0).toISOString() }; // Wed 18th local
+  const logs = [log('2026-11-18'), log('2026-11-19')];
+  const r = weeklyReview({ weekStart: W, habits: [created], habitLogs: logs, sleep: [], water: [], daily: [], settings });
+  const h = r.habits[0];
+  assert.equal(h.target, 5); assert.equal(h.hits, 2);
+  assert.equal(h.missedDays, 3); assert.equal(h.missedTwice, 1); // 20,21,22 only
+});
+
+test('habit created after the week: no misses, target 0', () => {
+  const created = { ...habit, created_at: new Date(2026, 10, 25, 9, 0).toISOString() };
+  const r = weeklyReview({ weekStart: W, habits: [created], habitLogs: [], sleep: [], water: [], daily: [], settings });
+  assert.equal(r.habits[0].missedDays, 0); assert.equal(r.habits[0].missedTwice, 0); assert.equal(r.habits[0].target, 0);
+});
+
+test('habit without created_at behaves as before', () => {
+  const r = weeklyReview({ weekStart: W, habits: [habit], habitLogs: [], sleep: [], water: [], daily: [], settings });
+  assert.equal(r.habits[0].missedDays, 7); assert.equal(r.habits[0].target, 7);
+});
