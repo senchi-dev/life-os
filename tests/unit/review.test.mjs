@@ -95,3 +95,29 @@ test('habit without created_at behaves as before', () => {
   const r = weeklyReview({ weekStart: W, habits: [habit], habitLogs: [], sleep: [], water: [], daily: [], settings });
   assert.equal(r.habits[0].missedDays, 7); assert.equal(r.habits[0].target, 7);
 });
+
+// ---- B3 / B4 ----
+import { oldestReviewWeek, reviewWeekStart as rws } from '../../js/lib/review.js';
+import { SNAPSHOT_PAST_DAYS, HABIT_LOG_PAST_DAYS, CONSISTENCY_LOOKBACK_DAYS } from '../../js/data/tables.js';
+import { addDays as addD } from '../../js/lib/dates.js';
+
+test('B3: oldest reviewable week never reads days outside the loaded windows', () => {
+  let d = '2026-11-01';
+  for (let i = 0; i < 60; i++, d = addD(d, 1)) {
+    const w = oldestReviewWeek(d);
+    assert.ok(w >= addD(d, -SNAPSHOT_PAST_DAYS), `${d}: week start inside the general window`);
+    assert.ok(addD(w, -CONSISTENCY_LOOKBACK_DAYS) >= addD(d, -HABIT_LOG_PAST_DAYS), `${d}: 28d lookback inside the habit-log window`);
+    assert.ok(w <= rws(d));
+    // maximal: one more week back would violate a window
+    const older = addD(w, -7);
+    assert.ok(older < addD(d, -SNAPSHOT_PAST_DAYS) || addD(older, -CONSISTENCY_LOOKBACK_DAYS) < addD(d, -HABIT_LOG_PAST_DAYS));
+  }
+});
+
+test('B4: weeklyReview marks habits younger than 28 days with `since`', () => {
+  const habit = { id: 'n', name: 'New', schedule_kind: 'daily', active: true, sort: 0, created_at: '2026-11-18T09:00:00' };
+  const old = { id: 'o', name: 'Old', schedule_kind: 'daily', active: true, sort: 1, created_at: '2026-01-01T09:00:00' };
+  const m = weeklyReview({ weekStart: '2026-11-16', habits: [habit, old], habitLogs: [], sleep: [], water: [], daily: [], settings: null });
+  assert.equal(m.habits[0].since, '2026-11-18');
+  assert.equal(m.habits[1].since, null);
+});

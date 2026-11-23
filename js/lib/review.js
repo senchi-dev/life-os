@@ -1,5 +1,6 @@
-import { addDays, isoWeekday, localDateKey, weekStart as mondayOf } from './dates.js';
-import { isDue, consistency28, weekHits } from './habits.js';
+import { addDays, isoWeekday, weekStart as mondayOf } from './dates.js';
+import { isDue, consistency28, weekHits, createdKey } from './habits.js';
+import { SNAPSHOT_PAST_DAYS, HABIT_LOG_PAST_DAYS, CONSISTENCY_LOOKBACK_DAYS } from '../data/tables.js';
 import { sleepStats, waterTotalsByDay, DEFAULT_WEEKLY_PAGES, DEFAULT_WATER_TARGET_L } from './health.js';
 
 const activeHabits = (habits) => habits.filter((h) => h.active !== false).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
@@ -12,10 +13,19 @@ export function reviewWeekStart(todayKey) {
   return isoWeekday(todayKey) === 7 ? mon : addDays(mon, -7);
 }
 
+// Oldest week whose every read stays inside the loaded windows: its own days (general window) and the
+// 28-day consistency lookback (habit-log window). Both come from the constants loadSnapshot uses.
+export function oldestReviewWeek(todayKey) {
+  const floor = [addDays(todayKey, -SNAPSHOT_PAST_DAYS), addDays(todayKey, -HABIT_LOG_PAST_DAYS + CONSISTENCY_LOOKBACK_DAYS)]
+    .reduce((a, b) => (a > b ? a : b));
+  let w = reviewWeekStart(todayKey);
+  while (addDays(w, -7) >= floor) w = addDays(w, -7);
+  return w;
+}
+
 // Due days without any log. 'skipped' is a deliberate exemption, not a miss.
 // n_per_week habits have no fixed days, so they report no missed days.
 // Days before the habit existed (its created_at local date) are neither due nor missed.
-const createdKey = (habit) => (habit.created_at ? localDateKey(new Date(habit.created_at)) : null);
 
 function missStats(habit, logs, start) {
   if (habit.schedule_kind === 'n_per_week') return { missedDays: 0, missedTwice: 0 };
@@ -50,6 +60,8 @@ export function weeklyReview({ weekStart, habits, habitLogs, sleep, water, daily
     return {
       id: h.id, name: h.name, hits, target: t,
       consistency28: consistency28(h, habitLogs, weekEnd),
+      // Set when the habit is younger than the 28-day window: the percentage then covers fewer days.
+      since: born && born > addDays(weekEnd, -27) ? born : null,
       ...missStats(h, habitLogs, weekStart),
     };
   });

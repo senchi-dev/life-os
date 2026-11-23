@@ -181,3 +181,40 @@ test('loadSnapshot normalizes HH:MM:SS times and gives events a 90-day window', 
   assert.equal(snap.events.find((e) => e.id === 'far60').start_time, null);
   assert.equal(snap.rituals.find((r) => r.id === 'r').time, '19:30');
 });
+
+// ---- B3: habit-log window; R8: paginated export ----
+import { addDays as addD2, localDateKey as lk2 } from '../../js/lib/dates.js';
+
+test('loadSnapshot loads habit_logs 70 days back (65d yes, 90d no) while other tables keep 42', async () => {
+  const today = lk2(new Date());
+  const { ctx } = await mk({
+    habit_logs: [
+      { id: 'a', habit_id: 'h', date: addD2(today, -65), status: 'done' },
+      { id: 'b', habit_id: 'h', date: addD2(today, -90), status: 'done' },
+    ],
+    daily: [
+      { id: 'c', date: addD2(today, -65), pages: 1 },
+      { id: 'd', date: addD2(today, -30), pages: 1 },
+    ],
+  });
+  const snap = await repo.loadSnapshot(ctx, today);
+  assert.deepEqual(snap.habitLogs.map((l) => l.id), ['a']);
+  assert.deepEqual(snap.daily.map((l) => l.id), ['d']);
+});
+
+test('exportAll returns every row of a 2,500-row table, no duplicates', async () => {
+  const water = Array.from({ length: 2500 }, (_, i) => ({ id: `w${String(i).padStart(5, '0')}`, liters: 0.25, at: '2026-01-01T00:00:00Z' }));
+  const { ctx } = await mk({ water });
+  const out = await repo.exportAll(ctx);
+  assert.equal(out.tables.water.length, 2500);
+  assert.equal(new Set(out.tables.water.map((r) => r.id)).size, 2500);
+});
+
+test('exportAll pages with range and stops on a short page (exact multiple costs one extra empty page)', async () => {
+  const calls = [];
+  const data = Array.from({ length: 2000 }, (_, i) => ({ id: String(i) }));
+  const backend = { select: async (t, q) => { if (t === 'water') calls.push(q.range); const [a, b] = q.range ?? [0, 1e9]; return t === 'water' ? data.slice(a, b + 1) : []; } };
+  const out = await repo.exportAll({ backend });
+  assert.equal(out.tables.water.length, 2000);
+  assert.deepEqual(calls, [[0, 999], [1000, 1999], [2000, 2999]]);
+});

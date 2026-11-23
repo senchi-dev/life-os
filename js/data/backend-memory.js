@@ -16,6 +16,7 @@ export function createMemoryBackend(seed = {}, userId = 'demo-user') {
         const [col, asc] = q.order;
         rows = [...rows].sort((a, b) => (a[col] < b[col] ? -1 : a[col] > b[col] ? 1 : 0) * (asc ? 1 : -1));
       }
+      if (q.range) rows = rows.slice(q.range[0], q.range[1] + 1);
       return rows.map(clone);
     },
     async upsert(table, rows, opts = {}) {

@@ -45,6 +45,7 @@ export function createSupabaseBackend(client) {
       for (const [k, v] of Object.entries(q.gte ?? {})) b = b.gte(k, v);
       for (const [k, v] of Object.entries(q.lte ?? {})) b = b.lte(k, v);
       if (q.order) b = b.order(q.order[0], { ascending: q.order[1] });
+      if (q.range) b = b.range(q.range[0], q.range[1]);
       return (await run(b)) ?? [];
     },
     async upsert(table, rows, opts = {}) {

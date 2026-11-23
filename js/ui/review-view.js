@@ -1,6 +1,7 @@
 // Review tab: one calm screen of numbers for a week, then three prompts. No charts.
 import { h } from './dom.js';
-import { reviewWeekStart, weeklyReview } from '../lib/review.js';
+import { loadingNodes } from './loading.js';
+import { reviewWeekStart, weeklyReview, oldestReviewWeek } from '../lib/review.js';
 import { formatDuration } from '../lib/health.js';
 import { addDays, formatDayLabel, isNewDay, localDateKey } from '../lib/dates.js';
 import * as repo from '../data/repo.js';
@@ -30,11 +31,7 @@ function syncToday(app) {
 
 // Weeks we can show: the current review week at most, and nothing whose Monday predates the loaded logs.
 const maxWeek = (app) => reviewWeekStart(app.todayKey);
-const minWeek = (app) => {
-  let w = reviewWeekStart(app.todayKey);
-  while (addDays(w, -7) >= addDays(app.todayKey, -41)) w = addDays(w, -7);
-  return w;
-};
+const minWeek = (app) => oldestReviewWeek(app.todayKey);
 function shownWeek(app) {
   const max = maxWeek(app), min = minWeek(app);
   let w = ui.week ?? max;
@@ -144,7 +141,7 @@ function habitsBlock(m) {
       h('div', { class: 'rrow' },
         h('span', { class: 'rlabel ellip' }, hb.name),
         h('span', { class: 'num rval' }, `${hb.hits}/${hb.target ?? dash}`),
-        h('span', { class: 'muted num rsub' }, `28d ${fmtPct(hb.consistency28)}`)),
+        h('span', { class: 'muted num rsub' }, hb.since ? `since ${formatDayLabel(hb.since)}` : `28d ${fmtPct(hb.consistency28)}`)),
       flags.length ? h('div', { class: `rflags${hb.missedTwice > 0 ? ' danger' : ' muted'}` }, flags.join(' · ')) : null);
   }));
 }
@@ -167,7 +164,7 @@ function textField(app, week, field, label) {
 export function renderReview(root, app) {
   ui.app = app;
   if (!app.snapshot) {
-    root.replaceChildren(h('h1', {}, 'Review'), h('p', { class: 'muted' }, 'Loading…'));
+    root.replaceChildren(h('h1', {}, 'Review'), ...loadingNodes(app));
     return;
   }
   const focused = root.contains(document.activeElement) && document.activeElement.dataset?.draft ? document.activeElement : null;

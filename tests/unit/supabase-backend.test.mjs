@@ -45,3 +45,10 @@ test('errors become BackendError with kind', async () => {
   const b3 = createSupabaseBackend(fakeClient(() => { throw new TypeError('Load failed'); }));
   await assert.rejects(b3.select('t'), (e) => e.kind === 'network');
 });
+
+test('select maps range to supabase .range(from, to) last', async () => {
+  const c = fakeClient({ data: [], error: null });
+  await createSupabaseBackend(c).select('water', { order: ['id', true], range: [1000, 1999] });
+  assert.deepEqual(c.calls[0].steps.map((s) => s[0]), ['select', 'match', 'order', 'range']);
+  assert.deepEqual(c.calls[0].steps.at(-1), ['range', 1000, 1999]);
+});

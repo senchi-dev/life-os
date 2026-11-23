@@ -1,5 +1,5 @@
 // Repository: reads go through ctx.backend, every write is outbox.enqueue(op) then a non-awaited flush.
-import { V1_TABLES } from './tables.js';
+import { V1_TABLES, SNAPSHOT_PAST_DAYS, HABIT_LOG_PAST_DAYS } from './tables.js';
 import { DEFAULT_RITUALS } from '../lib/rituals.js';
 import { addDays, parseDateKey, weekStart } from '../lib/dates.js';
 
@@ -26,10 +26,11 @@ async function write(ctx, op) {
   kick(ctx);
 }
 
-export async function loadSnapshot(ctx, todayKey, { pastDays = 42, futureDays = 7 } = {}) {
+export async function loadSnapshot(ctx, todayKey, { pastDays = SNAPSHOT_PAST_DAYS, futureDays = 7, habitLogDays = HABIT_LOG_PAST_DAYS } = {}) {
   const from = addDays(todayKey, -pastDays);
   const to = addDays(todayKey, futureDays);
   const range = { gte: { date: from }, lte: { date: to }, order: ['date', true] };
+  const habitRange = { gte: { date: addDays(todayKey, -Math.max(habitLogDays, pastDays)) }, lte: { date: to }, order: ['date', true] };
   const fromTs = parseDateKey(from).toISOString();
   const toTs = parseDateKey(addDays(to, 1)).toISOString();
   const evRange = { gte: { date: addDays(todayKey, -EVENT_PAST_DAYS) }, lte: { date: addDays(todayKey, EVENT_FUTURE_DAYS) }, order: ['date', true] };
@@ -37,7 +38,7 @@ export async function loadSnapshot(ctx, todayKey, { pastDays = 42, futureDays = 
   const [settings, habits, habitLogs, rituals, ritualLogs, events, sleep, water, daily, books, reviews] = await Promise.all([
     b.select('settings', {}),
     b.select('habits', { order: ['sort', true] }),
-    b.select('habit_logs', range),
+    b.select('habit_logs', habitRange),
     b.select('rituals', {}),
     b.select('ritual_logs', { gte: { week_start: weekStart(from) }, lte: { week_start: to }, order: ['week_start', true] }),
     b.select('events', evRange),
@@ -106,8 +107,18 @@ export const saveReview = (ctx, weekStartKey, patch) =>
   write(ctx, upsertOp('reviews', { ...patch, week_start: weekStartKey }, 'user_id,week_start'));
 export const saveSettings = (ctx, patch) => write(ctx, upsertOp('settings', { ...patch }, 'user_id'));
 
-export async function exportAll(ctx) {
+// Supabase caps one response at 1000 rows: page every table with a stable order until a short page.
+export const EXPORT_PAGE_SIZE = 1000;
+export async function exportAll(ctx, pageSize = EXPORT_PAGE_SIZE) {
   const tables = {};
-  for (const t of V1_TABLES) tables[t] = await ctx.backend.select(t, {});
+  for (const t of V1_TABLES) {
+    const out = [];
+    for (let from = 0; ; from += pageSize) {
+      const page = await ctx.backend.select(t, { order: ['id', true], range: [from, from + pageSize - 1] });
+      out.push(...page);
+      if (page.length < pageSize) break;
+    }
+    tables[t] = out;
+  }
   return { exported_at: new Date().toISOString(), tables };
 }

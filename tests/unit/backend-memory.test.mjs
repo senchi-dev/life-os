@@ -45,3 +45,10 @@ test('seed and dump', async () => {
   assert.equal((await b.select('habits'))[0].name, 'x');
   assert.ok(Array.isArray(b.dump().habits));
 });
+
+test('select honours range [from, to] (inclusive) after ordering', async () => {
+  const { createMemoryBackend: mkb } = await import('../../js/data/backend-memory.js');
+  const b = mkb({ t: Array.from({ length: 10 }, (_, i) => ({ id: String(i) })) });
+  const page = await b.select('t', { order: ['id', true], range: [3, 5] });
+  assert.deepEqual(page.map((r) => r.id), ['3', '4', '5']);
+});

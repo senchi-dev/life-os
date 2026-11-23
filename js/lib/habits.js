@@ -1,4 +1,4 @@
-import { addDays, isoWeekday, weekStart } from './dates.js';
+import { addDays, isoWeekday, localDateKey, weekStart } from './dates.js';
 
 export const MAX_ACTIVE_HABITS = 6;
 const MAX_WALK = 3650; // safety bound for backward walks
@@ -21,24 +21,39 @@ function doneInWeek(map, start) {
   return n;
 }
 
-// Last 4 complete ISO weeks (current, possibly partial, week excluded), most recent first.
+// Local date the habit came into existence. null (= existed forever) when created_at is missing or invalid.
+export function createdKey(habit) {
+  if (!habit?.created_at) return null;
+  const d = new Date(habit.created_at);
+  return Number.isNaN(d.getTime()) ? null : localDateKey(d);
+}
+
+// Last `count` complete ISO weeks, most recent first. The week containing todayKey counts only when
+// todayKey is its last day (Sunday), so a week review sees the week it is reviewing.
 function lastCompleteWeeks(todayKey, count) {
   const cur = weekStart(todayKey);
-  return Array.from({ length: count }, (_, i) => addDays(cur, -7 * (i + 1)));
+  const first = isoWeekday(todayKey) === 7 ? 0 : 1;
+  return Array.from({ length: count }, (_, i) => addDays(cur, -7 * (i + first)));
 }
 
 export function consistency28(habit, logs, todayKey) {
   const map = statusMap(habit, logs);
+  const born = createdKey(habit);
   if (habit.schedule_kind === 'n_per_week') {
     const t = habit.target_n;
     if (!t) return null;
-    let sum = 0;
-    for (const ws of lastCompleteWeeks(todayKey, 4)) sum += Math.min(doneInWeek(map, ws), t);
-    return sum / (4 * t);
+    let sum = 0, weeks = 0;
+    for (const ws of lastCompleteWeeks(todayKey, 4)) {
+      if (born && ws < born) continue; // the habit did not exist for the whole week
+      sum += Math.min(doneInWeek(map, ws), t);
+      weeks++;
+    }
+    return weeks === 0 ? null : sum / (weeks * t);
   }
   let num = 0, den = 0;
   for (let i = 0; i < 28; i++) {
     const d = addDays(todayKey, -i);
+    if (born && d < born) break; // days before the habit existed are neither due nor missed
     if (!isDue(habit, d)) continue;
     const s = map.get(d);
     if (s === 'skipped') continue;

@@ -95,3 +95,55 @@ test('canActivate', () => {
   assert.equal(canActivate(mk(6, true)), false);
   assert.equal(canActivate([...mk(5, true), ...mk(3, false)]), true);
 });
+
+// ---- B4: new-habit-aware consistency28 ----
+const at = (iso) => ({ created_at: iso });
+
+test('consistency28: a 3-day-old daily habit counts only the days that existed (3/3 done = 100%)', () => {
+  const h = { ...daily, ...at('2026-11-20T10:00:00') }; // local date 2026-11-20
+  const l = logs('h', { '2026-11-20': 'done', '2026-11-21': 'done', '2026-11-22': 'done' });
+  assert.equal(consistency28(h, l, TODAY), 1);
+});
+
+test('consistency28: a habit created today has no due days yet => null', () => {
+  const h = { ...daily, ...at('2026-11-23T08:00:00') };
+  assert.equal(consistency28(h, [], TODAY), null);
+});
+
+test('consistency28: born date is the LOCAL date (TZ-discriminating, 00:30 local)', () => {
+  // 00:30 local on 2026-11-20 is 2026-11-19 in UTC for Paris (UTC+1) but the same local day in Auckland.
+  const local = new Date(2026, 10, 20, 0, 30, 0);
+  const h = { ...daily, created_at: local.toISOString() };
+  const l = logs('h', { '2026-11-20': 'done', '2026-11-21': 'done', '2026-11-22': 'done' });
+  assert.equal(consistency28(h, l, TODAY), 1); // 11-20 counts, 11-19 does not
+  const withMiss = logs('h', { '2026-11-21': 'done', '2026-11-22': 'done' });
+  assert.equal(consistency28(h, withMiss, TODAY), 2 / 3); // 11-20 is a counted miss
+});
+
+test('consistency28: invalid or missing created_at behaves like existed forever, never throws', () => {
+  const done = range('2026-11-02', '2026-11-22');
+  for (const created_at of ['not-a-date', '', null, undefined]) {
+    assert.equal(consistency28({ ...daily, created_at }, logs('h', done), TODAY), 21 / 27, String(created_at));
+  }
+});
+
+test('consistency28: weekdays habit respects the creation date', () => {
+  const h = { ...wk135, ...at('2026-11-18T09:00:00') }; // Wed; due days since: Wed18 Fri20 Mon23(today, unlogged skipped)
+  const l = logs('h', { '2026-11-18': 'done', '2026-11-20': 'done' });
+  assert.equal(consistency28(h, l, TODAY), 1);
+});
+
+test('consistency28 n_per_week: weeks starting before creation are skipped; null if none left', () => {
+  const l = logs('h', { ...range('2026-11-02', '2026-11-08'), ...range('2026-11-09', '2026-11-15') });
+  // created Mon 2026-11-09 => weeks starting 11-09 counts, 11-02 skipped; weeks 11-16 (complete before today 11-23) counts
+  const h = { ...nper3, ...at('2026-11-09T08:00:00') };
+  assert.equal(consistency28(h, l, TODAY), (3 + 0) / 6);
+  assert.equal(consistency28({ ...nper3, ...at('2026-11-22T08:00:00') }, l, TODAY), null);
+  assert.equal(consistency28({ ...nper3, created_at: 'garbage' }, l, TODAY), (3 + 3 + 0 + 0) / 12);
+});
+
+test('consistency28 n_per_week: the reviewed week counts once it is complete (Sunday)', () => {
+  const l = logs('h', range('2026-11-16', '2026-11-22'));
+  const h = { ...nper3, ...at('2026-11-16T08:00:00') };
+  assert.equal(consistency28(h, l, '2026-11-22'), 1);
+});
