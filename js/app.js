@@ -12,7 +12,8 @@ import { createAuthRecovery } from './lib/auth-recovery.js';
 import { renderAuth } from './ui/auth-view.js';
 import { h } from './ui/dom.js';
 import { localDateKey } from './lib/dates.js';
-import { renderCalendar, renderReview, renderMore } from './views/placeholder.js';
+import { renderReview, renderMore } from './views/placeholder.js';
+import { renderCalendar } from './ui/calendar-view.js';
 import { renderToday } from './ui/today-view.js';
 
 const ROUTES = ['today', 'calendar', 'review', 'more'];

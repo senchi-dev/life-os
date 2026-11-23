@@ -178,3 +178,36 @@ button.chip {
 button.link.num { margin: -12px 0; justify-content: flex-start; color: var(--fg); text-decoration: none; font-size: var(--fs-m); padding: 0; min-width: 44px; }
 .tnotice { margin: var(--s2) 0 0; font-size: var(--fs-s); }
 .tfoot { margin: var(--s2) 0 0; border-top: 1px solid var(--line); padding-top: var(--s3); }
+
+/* Calendar. Agenda scrolls; the add/edit form is pinned just above the tab bar (thumb zone). */
+main[data-view="calendar"] { padding-top: var(--s3); padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+.cal h1 { margin-bottom: var(--s2); }
+.cday { border-top: 1px solid var(--line); padding: var(--s2) 0; }
+.cdayhead { margin: 0 0 var(--s1); font-weight: 400; }
+.cempty { margin: 0; }
+.citem { display: flex; gap: var(--s3); align-items: baseline; width: 100%; min-height: 32px; text-align: left; }
+.citem.is-ritual { color: var(--muted); }
+button.citem { min-height: 44px; border: 0; background: transparent; padding: 0; cursor: pointer; justify-content: flex-start; align-items: center; touch-action: manipulation; }
+button.citem:active { background: transparent; opacity: 0.6; }
+.citem.is-selected .ellip:first-child { color: var(--accent); font-weight: 600; }
+.ctime { flex: none; width: 5.5rem; font-size: var(--fs-s); color: var(--muted); }
+.cbody { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; }
+.cform {
+  position: sticky; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  background: var(--bg); border-top: 1px solid var(--line);
+  padding: var(--s2) 0 var(--s2); margin-top: var(--s3);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+.cformhead { display: flex; justify-content: space-between; align-items: center; min-height: 20px; }
+button.link.clink { margin: 0; min-height: 44px; padding: 0 var(--s2); }
+.crow1 { display: flex; gap: var(--s2); }
+.crow3 { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: var(--s2); }
+.clabel { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cfield { min-width: 0; width: 100%; min-height: 44px; padding: 0 var(--s2); }
+.crow1 .cfield { flex: 1; padding: 0 var(--s3); }
+button.cadd { min-height: 44px; min-width: 64px; }
+.cnotice { margin: 0; font-size: var(--fs-s); }
+button.cdelete { align-self: flex-start; min-height: 44px; color: var(--danger); border-color: var(--line); }
+button.cdelete.is-confirm { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+button.cadd { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+button.cadd:active { background: var(--fg); opacity: 0.85; }
