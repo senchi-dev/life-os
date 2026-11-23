@@ -12,7 +12,7 @@ import { createAuthRecovery } from './lib/auth-recovery.js';
 import { renderAuth } from './ui/auth-view.js';
 import { h } from './ui/dom.js';
 import { localDateKey } from './lib/dates.js';
-import { renderMore } from './views/placeholder.js';
+import { renderMore } from './ui/more-view.js';
 import { renderReview } from './ui/review-view.js';
 import { renderCalendar } from './ui/calendar-view.js';
 import { renderToday } from './ui/today-view.js';
@@ -46,6 +46,12 @@ export async function signOutEverywhere(app) {
   }
   await app.toLogin();
   if (failure) throw failure;
+}
+
+// Local sign-out: drop this device's session, then the same cleanup (outbox cleared, login screen).
+export async function signOutLocal(app) {
+  try { await app.client.auth.signOut({ scope: 'local' }); } catch { /* local state is cleared below */ }
+  await app.toLogin();
 }
 
 export async function boot() {
@@ -95,6 +101,15 @@ async function start(root, setBanner) {
     ctx, client, demo,
     mode: 'login',
     snapshot: null,
+    signOut: () => signOutLocal(app),
+    signOutEverywhere: async () => {
+      try {
+        await signOutEverywhere(app);
+      } catch {
+        // Other devices may still be signed in: say so on the login screen instead of failing silently.
+        await app.toLogin({ clear: false, notice: 'Signed out here only. Could not reach the server to sign out other devices; try again when online.' });
+      }
+    },
     todayKey: localDateKey(new Date()),
     async refresh() {
       if (app.mode !== 'app') return;
