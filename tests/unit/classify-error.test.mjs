@@ -22,3 +22,12 @@ test('BackendError carries kind and cause', () => {
   assert.equal(e.cause, 'c');
   assert.ok(e instanceof Error);
 });
+
+test('RLS rejection (403 + SQLSTATE) is server, not auth', () => {
+  assert.equal(classifyError({ status: 403, code: '42501' }), 'server');
+  assert.equal(classifyError({ status: 401 }), 'auth');
+  assert.equal(classifyError({ status: 403 }), 'auth');
+  assert.equal(classifyError({ code: '23514' }), 'server');
+  assert.equal(classifyError({ code: 'PGRST301' }), 'auth');
+  assert.equal(classifyError({ status: 401, code: '42501' }), 'auth');
+});

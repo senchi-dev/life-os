@@ -12,7 +12,10 @@ export function classifyError(err) {
   const status = err?.status;
   const code = err?.code;
   const msg = String(err?.message ?? '');
-  if (status === 401 || status === 403 || code === 'PGRST301' || code === 'PGRST303' || /jwt|expired|refresh token/i.test(msg)) return 'auth';
+  if (status === 401 || code === 'PGRST301' || code === 'PGRST303') return 'auth';
+  // A Postgres SQLSTATE (e.g. 42501 RLS rejection) is a server-side rejection, even on HTTP 403.
+  if (typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)) return 'server';
+  if (status === 403 || /jwt|expired|refresh token/i.test(msg)) return 'auth';
   if (err instanceof TypeError || /fetch|network|load failed/i.test(msg)) return 'network';
   return 'server';
 }

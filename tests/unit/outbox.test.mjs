@@ -104,3 +104,40 @@ test('clear empties queue and storage', async () => {
   assert.equal((await storage.load()).length, 0);
   assert.equal(counts.at(-1), 0);
 });
+
+test('clear() during in-flight apply does not lose a newly enqueued op', async () => {
+  const storage = createMemoryStorage();
+  const applied = [];
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const backend = {
+    upsert: async (t, rows) => { if (rows[0].tag === 'OLD') await gate; applied.push(rows[0].tag); },
+    remove: async () => {},
+  };
+  const ob = createOutbox({ backend, storage });
+  await ob.enqueue({ ...A, rows: [{ tag: 'OLD' }] });
+  const f1 = ob.flush();
+  await new Promise((r) => setImmediate(r));
+  await ob.clear();
+  await ob.enqueue(B);
+  release();
+  await f1;
+  assert.equal(ob.pending(), 1);
+  assert.equal((await storage.load()).length, 1);
+  const r = await ob.flush();
+  assert.equal(r.remaining, 0);
+  assert.equal(applied.filter((t) => t === 'B').length, 1);
+});
+
+test('after clear(), storage holds only ops enqueued afterwards', async () => {
+  const storage = createMemoryStorage();
+  const ob = createOutbox({ backend: fakeBackend(), storage });
+  await ob.enqueue(A);
+  const c = ob.clear();
+  const e = ob.enqueue(B);
+  await Promise.all([c, e]);
+  const saved = await storage.load();
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].rows[0].tag, 'B');
+  assert.equal(ob.pending(), 1);
+});

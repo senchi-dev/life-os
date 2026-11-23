@@ -13,6 +13,8 @@ export function createMemoryStorage() {
 export function createOutbox({ backend, storage, onChange = () => {} }) {
   let ops = [];
   let running = null;
+  let runningGen = -1;
+  let gen = 0; // bumped by clear(); stale flushes must stop touching the queue
   let saveChain = Promise.resolve();
   const applied = new Set(); // ids already sent this session: never apply twice
 
@@ -25,17 +27,19 @@ export function createOutbox({ backend, storage, onChange = () => {} }) {
     ? backend.remove(op.table, { eq: op.eq })
     : backend.upsert(op.table, op.rows, { onConflict: op.onConflict, ignoreDuplicates: op.ignoreDuplicates });
 
-  async function doFlush() {
+  async function doFlush(myGen) {
     let sent = 0;
     const failed = [];
-    while (ops.length) {
+    while (gen === myGen && ops.length) {
       const op = ops[0];
       if (!applied.has(op.id)) {
         try {
           await apply(op);
         } catch (err) {
+          if (gen !== myGen) break;
           const kind = err?.kind ?? classifyError(err);
           if (kind === 'network' || kind === 'auth') break;
+          if (ops[0] !== op) break;
           ops.shift();
           failed.push(op);
           await persist();
@@ -45,6 +49,7 @@ export function createOutbox({ backend, storage, onChange = () => {} }) {
         applied.add(op.id);
         sent++;
       }
+      if (gen !== myGen || ops[0] !== op) break;
       ops.shift();
       await persist();
       onChange(ops.length);
@@ -63,14 +68,22 @@ export function createOutbox({ backend, storage, onChange = () => {} }) {
       onChange(ops.length);
     },
     flush() {
-      running ??= doFlush().finally(() => { running = null; });
-      return running;
+      if (running && runningGen === gen) return running;
+      const prev = running;
+      runningGen = gen;
+      const g = gen;
+      const p = (prev ? prev.catch(() => {}) : Promise.resolve())
+        .then(() => doFlush(g))
+        .finally(() => { if (running === p) running = null; });
+      running = p;
+      return p;
     },
     pending: () => ops.length,
     async clear() {
+      gen++;
       ops = [];
-      await saveChain.catch(() => {});
-      await storage.clear();
+      saveChain = saveChain.catch(() => {}).then(() => storage.clear());
+      await saveChain;
       onChange(0);
     },
   };
