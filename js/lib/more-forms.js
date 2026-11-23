@@ -1,3 +1,4 @@
+import { pickCurrentBook } from './books.js';
 // Pure validation for the More tab forms. Every validator returns { value, error }.
 const fail = (error) => ({ value: null, error });
 const ok = (value) => ({ value, error: null });
@@ -91,10 +92,4 @@ export function scheduleLabel(habit) {
   return 'Daily';
 }
 
-// Same pick as the Today screen: the unfinished book that was started last.
-export function currentBookId(books) {
-  const open = (books ?? []).filter((b) => !b.finished_on);
-  let best = null;
-  for (const b of open) if (!best || (b.started_on ?? '') > (best.started_on ?? '')) best = b;
-  return best?.id ?? null;
-}
+export const currentBookId = (books, settings) => pickCurrentBook(books, settings)?.id ?? null;

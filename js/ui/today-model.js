@@ -5,6 +5,7 @@ import { ritualsForToday } from '../lib/rituals.js';
 import { nowNext } from '../lib/agenda.js';
 import { defaultTimes, DEFAULT_WATER_TARGET_L } from '../lib/health.js';
 import { weekToDate } from '../lib/review.js';
+import { pickCurrentBook } from '../lib/books.js';
 
 const hhmm = (v) => {
   const d = new Date(v);
@@ -51,8 +52,7 @@ export function buildTodayModel(snapshot, todayKey, now) {
     ? { logged: true, bed: hhmm(night.bed_at), wake: hhmm(night.wake_at), minutes: Math.round((new Date(night.wake_at) - new Date(night.bed_at)) / 60000) }
     : { logged: false, ...defaultTimes(s.sleep ?? []), minutes: null };
 
-  const book = [...(s.books ?? [])].filter((b) => !b.finished_on)
-    .sort((a, b) => (a.started_on < b.started_on ? 1 : a.started_on > b.started_on ? -1 : 0))[0] ?? null;
+  const book = pickCurrentBook(s.books, s.settings);
 
   return {
     dayLabel: formatDayLabel(todayKey),

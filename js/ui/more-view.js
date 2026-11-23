@@ -8,7 +8,7 @@ import {
   validateWaterTarget, validateWeeklyPages, validateHabit, validateRitual, validateBook,
   moveHabit, nextSort, scheduleLabel, currentBookId, WEEKDAY_NAMES,
 } from '../lib/more-forms.js';
-import { addDays } from '../lib/dates.js';
+import { localDateKey } from '../lib/dates.js';
 import * as repo from '../data/repo.js';
 
 // UI-only state; survives re-renders but not reloads. drafts: 'form.field' -> unsaved value.
@@ -241,36 +241,38 @@ const bookRow = (b) => ({
   started_on: b.started_on ?? null, finished_on: b.finished_on ?? null,
 });
 
-// Today shows the unfinished book started last. To make one current, any other book already started
-// today or later is moved back a day, so the choice is never lost to a tie.
-function startBook(app, b, extra = {}) {
-  const rivals = app.snapshot.books.filter((x) => x.id !== b.id && !x.finished_on && (x.started_on ?? '') >= app.todayKey);
-  const back = addDays(app.todayKey, -1);
-  const rows = [{ ...bookRow(b), ...extra, started_on: app.todayKey }, ...rivals.map((x) => ({ ...bookRow(x), started_on: back }))];
-  commit(app, 'books', () => {
-    Object.assign(b, extra, { started_on: app.todayKey });
-    for (const x of rivals) x.started_on = back;
-  }, () => Promise.all(rows.map((r) => repo.saveBook(app.ctx, r))));
+// "Current" is an explicit marker on settings; no book date is ever rewritten to fake it.
+function setCurrent(app, b) {
+  commit(app, 'books', (snap) => { snap.settings = { ...(snap.settings ?? {}), current_book_id: b.id }; },
+    () => repo.saveSettings(app.ctx, { current_book_id: b.id }));
+}
+
+function reopenBook(app, b) {
+  const row = { ...bookRow(b), finished_on: null };
+  commit(app, 'books', () => { b.finished_on = null; }, () => repo.saveBook(app.ctx, row));
 }
 
 function finishBook(app, b) {
   const row = { ...bookRow(b), finished_on: app.todayKey };
-  commit(app, 'books', () => { b.finished_on = app.todayKey; }, () => repo.saveBook(app.ctx, row));
+  const clear = app.snapshot.settings?.current_book_id === b.id;
+  commit(app, 'books', (snap) => {
+    b.finished_on = app.todayKey;
+    if (clear) snap.settings = { ...snap.settings, current_book_id: null };
+  }, () => Promise.all([repo.saveBook(app.ctx, row), clear ? repo.saveSettings(app.ctx, { current_book_id: null }) : null]));
 }
 
 function submitBook(app, e) {
   e.preventDefault();
   const r = validateBook({ title: ui.drafts['book.title'], author: ui.drafts['book.author'], pages: ui.drafts['book.pages'] });
   if (r.error) return say('books', r.error), app.rerender();
-  const fresh = { id: crypto.randomUUID(), ...r.value, started_on: null, finished_on: null };
+  const row = { id: crypto.randomUUID(), ...r.value, started_on: app.todayKey, finished_on: null };
   clearDrafts('book.');
-  app.snapshot.books.push(fresh);
-  startBook(app, fresh);
+  commit(app, 'books', (snap) => { snap.books.push({ ...row, created_at: new Date().toISOString() }); }, () => repo.saveBook(app.ctx, row));
 }
 
 function booksBody(app) {
   const books = app.snapshot.books;
-  const cur = currentBookId(books);
+  const cur = currentBookId(books, app.snapshot.settings);
   const ordered = [...books].sort((a, b) => (a.id === cur ? -1 : b.id === cur ? 1 : (a.finished_on ? 1 : 0) - (b.finished_on ? 1 : 0)));
   const sub = (b) => [b.author, b.total_pages ? `${b.total_pages} pages` : null, b.id === cur ? 'Current' : b.finished_on ? 'Finished' : null].filter(Boolean).join(' · ');
   return h('div', {},
@@ -278,9 +280,9 @@ function booksBody(app) {
     ordered.map((b) => h('div', { class: 'mrow' },
       h('div', { class: `mname mstatic${b.id === cur ? ' is-cur' : ''}` }, h('span', { class: 'ellip' }, b.title), h('span', { class: 'muted ellip' }, sub(b))),
       b.finished_on
-        ? h('button', { type: 'button', class: 'tap', onClick: () => startBook(app, b, { finished_on: null }) }, 'Reopen')
+        ? h('button', { type: 'button', class: 'tap', onClick: () => reopenBook(app, b) }, 'Reopen')
         : [
-          b.id === cur ? null : h('button', { type: 'button', class: 'tap', onClick: () => startBook(app, b) }, 'Set current'),
+          b.id === cur ? null : h('button', { type: 'button', class: 'tap', onClick: () => setCurrent(app, b) }, 'Set current'),
           h('button', { type: 'button', class: 'tap', onClick: () => finishBook(app, b) }, 'Finish')])),
     h('form', { class: 'mform mform-in', onSubmit: (e) => submitBook(app, e), novalidate: true },
       h('span', { class: 'cap' }, 'Add a book'),
@@ -302,28 +304,51 @@ function download(file) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function clearPassphrases() {
+  if (pass1) pass1.value = '';
+  if (pass2) pass2.value = '';
+}
+
+// Full reset of the More screen state (sign-out, auth loss): nothing typed may outlive the session.
+export function resetMore() {
+  clearPassphrases();
+  clearTimeout(ui.confirmTimer);
+  Object.assign(ui, { open: null, notice: null, drafts: {}, habitEdit: null, ritualEdit: null, confirmAll: false, confirmTimer: null, exporting: false, busyAccount: false });
+}
+
+// Leaving the tab clears the passphrase fields.
+if (typeof window !== 'undefined') window.addEventListener('hashchange', clearPassphrases);
+
 async function runExport(app) {
   const [p1, p2] = passFields();
   const bad = validatePassphrase(p1.value, p2.value);
-  if (bad) { say('export', bad); return app.rerender(); }
+  if (bad) { say('export', bad); return app.rerender(); } // keep the fields so typos can be fixed
   ui.exporting = true;
   say('export', 'Encrypting…', 'info');
   app.rerender();
   try {
-    const data = await repo.exportAll(app.ctx);
-    const text = await encryptExport(data, p1.value);
-    const file = new File([text], exportFileName(app.todayKey), { type: 'application/json' });
+    let file;
+    try {
+      const data = await repo.exportAll(app.ctx);
+      const text = await encryptExport(data, p1.value);
+      file = new File([text], exportFileName(localDateKey(new Date())), { type: 'application/json' });
+    } catch {
+      say('export', 'Export failed. Nothing was saved. Try again.');
+      return;
+    }
     let cancelled = false;
     if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file] }); } catch (e) { if (e?.name === 'AbortError') cancelled = true; else throw e; }
+      try { await navigator.share({ files: [file] }); } catch (e) {
+        if (e?.name === 'AbortError') cancelled = true;
+        else download(file); // e.g. NotAllowedError after the gesture expired: the file still exists
+      }
     } else {
       download(file);
     }
-    if (cancelled) say('export', 'Export cancelled.', 'info');
-    else { p1.value = ''; p2.value = ''; say('export', 'Export saved. Keep the passphrase in your password manager.', 'info'); }
-  } catch {
-    say('export', 'Export failed. Nothing was saved. Try again.');
+    if (cancelled) ui.notice = null;
+    else say('export', 'Export saved. Keep the passphrase in your password manager.', 'info');
   } finally {
+    clearPassphrases();
     ui.exporting = false;
     app.rerender();
   }
@@ -343,9 +368,9 @@ function exportBody(app) {
 function accountBody(app) {
   const off = app.demo || !app.client || ui.busyAccount;
   const run = (fn) => {
+    resetMore();
+    ui.open = 'account';
     ui.busyAccount = true;
-    ui.confirmAll = false;
-    clearTimeout(ui.confirmTimer);
     app.rerender();
     return toPromise(fn).then(() => {}, () => {}).finally(() => { ui.busyAccount = false; });
   };
@@ -390,6 +415,7 @@ function sections(app) {
 }
 
 function toggleSection(app, id) {
+  clearPassphrases();
   ui.open = ui.open === id ? null : id;
   ui.notice = null;
   ui.confirmAll = false;

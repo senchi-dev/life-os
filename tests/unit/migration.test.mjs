@@ -55,3 +55,12 @@ test('V1_TABLES lists every parent before its child', () => {
   assert.ok(i('rituals') < i('ritual_logs'));
   assert.ok(i('books') < i('daily'));
 });
+
+test('002_current_book.sql adds the nullable marker and stays safe', () => {
+  const m2 = read('../../supabase/migrations/002_current_book.sql');
+  assert.ok(m2.includes('alter table public.settings add column if not exists current_book_id uuid references public.books(id) on delete set null;'));
+  assert.ok(!m2.includes('aal2'));
+  assert.ok(!/grant[^;]*\bto\b[^;]*\banon\b/.test(m2));
+  assert.ok(!m2.includes('security definer'));
+  assert.ok(!/not null/.test(m2));
+});

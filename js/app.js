@@ -12,7 +12,7 @@ import { createAuthRecovery } from './lib/auth-recovery.js';
 import { renderAuth } from './ui/auth-view.js';
 import { h } from './ui/dom.js';
 import { localDateKey } from './lib/dates.js';
-import { renderMore } from './ui/more-view.js';
+import { renderMore, resetMore } from './ui/more-view.js';
 import { renderReview } from './ui/review-view.js';
 import { renderCalendar } from './ui/calendar-view.js';
 import { renderToday } from './ui/today-view.js';
@@ -144,6 +144,7 @@ async function start(root, setBanner) {
     async toLogin({ clear = true, notice = null } = {}) {
       app.mode = 'login';
       app.snapshot = null;
+      resetMore();
       document.body.dataset.mode = 'auth';
       setBanner(notice);
       if (clear) try { await outbox.clear(); } catch { /* queue is dropped from memory either way */ }

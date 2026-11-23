@@ -100,3 +100,24 @@ test('water at 00:30 on the new day counts for the new day, 23:30 the day before
   assert.equal(m.water.last.id, 'b');
   assert.equal(buildTodayModel(s, TODAY, '23:45').water.total, 1);
 });
+
+test('current book: marker wins, then latest started_on, then created_at, then id', () => {
+  const mk = (id, started_on, created_at, finished_on = null) => ({ id, title: id, started_on, created_at, finished_on });
+  const base = () => ({ ...fresh(), books: [mk('a', '2026-01-01', '2026-01-01T00:00:00Z'), mk('b', '2026-02-01', '2026-02-01T00:00:00Z')] });
+  const titleOf = (s) => buildTodayModel(s, TODAY, '10:00').pages.book?.title;
+  // fallback: latest started_on
+  assert.equal(titleOf(base()), 'b');
+  // marker wins
+  const s1 = base(); s1.settings = { ...s1.settings, current_book_id: 'a' };
+  assert.equal(titleOf(s1), 'a');
+  // marker pointing at a finished or missing book is ignored
+  const s2 = base(); s2.books[0].finished_on = '2026-03-01'; s2.settings = { ...s2.settings, current_book_id: 'a' };
+  assert.equal(titleOf(s2), 'b');
+  const s3 = base(); s3.settings = { ...s3.settings, current_book_id: 'zzz' };
+  assert.equal(titleOf(s3), 'b');
+  // tie on started_on: created_at desc, then id
+  const s4 = { ...base(), books: [mk('a', '2026-02-01', '2026-02-01T00:00:00Z'), mk('b', '2026-02-01', '2026-02-02T00:00:00Z')] };
+  assert.equal(titleOf(s4), 'b');
+  const s5 = { ...base(), books: [mk('a', '2026-02-01', '2026-02-01T00:00:00Z'), mk('b', '2026-02-01', '2026-02-01T00:00:00Z')] };
+  assert.equal(titleOf(s5), 'a');
+});

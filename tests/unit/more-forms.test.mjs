@@ -90,4 +90,6 @@ test('scheduleLabel and currentBookId', async () => {
   assert.equal(scheduleLabel({ schedule_kind: 'weekdays', weekdays: [6, 2] }), 'Tue, Sat');
   assert.equal(currentBookId([{ id: 'a', started_on: '2026-01-01' }, { id: 'b', started_on: '2026-02-01' }, { id: 'c', started_on: '2026-03-01', finished_on: '2026-03-02' }]), 'b');
   assert.equal(currentBookId([]), null);
+  assert.equal(currentBookId([{ id: 'a', started_on: '2026-01-01' }, { id: 'b', started_on: '2026-02-01' }], { current_book_id: 'a' }), 'a');
+  assert.equal(currentBookId([{ id: 'a', started_on: '2026-02-01', created_at: '1' }, { id: 'b', started_on: '2026-02-01', created_at: '2' }]), 'b');
 });

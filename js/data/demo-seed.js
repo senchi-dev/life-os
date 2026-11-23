@@ -59,7 +59,7 @@ export function demoSeed(todayKey) {
   }));
 
   return {
-    settings: [{ id: uuid(), water_target_l: 2.5, weekly_pages: 200, timezone: null }],
+    settings: [{ id: uuid(), user_id: 'demo-user', water_target_l: 2.5, weekly_pages: 200, timezone: null, current_book_id: null }],
     habits, habit_logs, rituals, ritual_logs: [], events, sleep, water, books: [book], daily, reviews: [],
   };
 }
