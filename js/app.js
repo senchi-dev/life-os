@@ -12,7 +12,8 @@ import { createAuthRecovery } from './lib/auth-recovery.js';
 import { renderAuth } from './ui/auth-view.js';
 import { h } from './ui/dom.js';
 import { localDateKey } from './lib/dates.js';
-import { renderToday, renderCalendar, renderReview, renderMore } from './views/placeholder.js';
+import { renderCalendar, renderReview, renderMore } from './views/placeholder.js';
+import { renderToday } from './ui/today-view.js';
 
 const ROUTES = ['today', 'calendar', 'review', 'more'];
 const VIEWS = { today: renderToday, calendar: renderCalendar, review: renderReview, more: renderMore };
@@ -112,6 +113,7 @@ async function start(root, setBanner) {
         if (a.dataset.route === route) a.setAttribute('aria-current', 'page');
         else a.removeAttribute('aria-current');
       }
+      root.dataset.view = route;
       VIEWS[route](root, app);
     },
     async toApp() {

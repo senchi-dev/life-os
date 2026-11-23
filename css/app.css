@@ -121,3 +121,58 @@ button.link:active { background: transparent; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* Today. Flat rows, hairline dividers, accent only for done state. */
+main[data-view="today"] { padding-top: var(--s3); padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--s2)); }
+.thead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--s2); }
+.thead h1 { margin: 0; }
+.tpending { font-size: var(--fs-s); }
+.tsec { border-top: 1px solid var(--line); padding: var(--s2) 0; }
+.cap { font-size: var(--fs-s); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.grow { flex: 1; min-width: 0; }
+.ellip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.tnow { display: grid; grid-template-columns: 3rem 3.25rem 1fr; gap: var(--s2); align-items: baseline; min-height: 28px; }
+button.tline { display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: 44px; border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; justify-content: flex-start; }
+.tline.is-done, .is-done-text { color: var(--accent); }
+.tchecks { padding-bottom: var(--s2); }
+button.tcheck { display: flex; width: 100%; justify-content: flex-start; gap: var(--s3); border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; }
+.tcheck .box { width: 18px; height: 18px; border: 1.5px solid var(--muted); border-radius: 5px; flex: none; transition: background-color var(--ease), border-color var(--ease); }
+.tcheck.is-done .box { background: var(--accent); border-color: var(--accent); }
+.tcheck.is-done { color: var(--muted); }
+.thint { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: var(--s2); font-size: var(--fs-s); }
+.habits { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+button.habit {
+  flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; min-height: 52px; padding: var(--s1) var(--s3);
+  border: 1px solid var(--line); border-radius: var(--radius); background: transparent; text-align: left; cursor: pointer; min-width: 0;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+  transition: background-color var(--ease), border-color var(--ease), color var(--ease);
+}
+.habit:active { background: var(--line); }
+.habit.is-done { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+.habit.is-skipped { border-style: dashed; color: var(--muted); }
+.hname { max-width: 100%; font-weight: 500; }
+.hsub { display: flex; gap: var(--s2); font-size: var(--fs-s); color: var(--muted); max-width: 100%; white-space: nowrap; overflow: hidden; }
+.habit.is-done .hsub { color: inherit; }
+.tempty { margin: 0; min-height: 44px; display: flex; align-items: center; }
+.trow { display: flex; align-items: center; gap: var(--s2); min-height: 48px; }
+.tlabel { display: flex; flex-direction: column; width: 5.5rem; flex: none; line-height: 1.25; }
+.tctl { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; justify-content: flex-start; }
+button.chip {
+  background: transparent; border: 1px solid var(--line); border-radius: var(--radius); padding: 0 8px; cursor: pointer; flex: none;
+  touch-action: manipulation;
+  transition: background-color var(--ease), border-color var(--ease), color var(--ease);
+}
+.chip:active { background: var(--line); }
+.chip.is-done { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.chip-strong { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+.chip-strong:active { background: var(--fg); opacity: 0.85; }
+.chip.mood { min-width: 44px; padding: 0; }
+.tbook { flex: 1; text-align: right; font-size: var(--fs-s); }
+.tinline { display: flex; gap: var(--s2); padding-bottom: var(--s2); }
+.tfield { flex: 1; min-width: 0; min-height: 44px; padding: 0 var(--s2); }
+.tctl .tfield { flex: 1 1 0; }
+.tundo { display: flex; justify-content: flex-end; }
+.tundo .link { margin: 0; min-height: 44px; padding: 0 var(--s2); }
+button.link.num { margin: -12px 0; justify-content: flex-start; color: var(--fg); text-decoration: none; font-size: var(--fs-m); padding: 0; min-width: 44px; }
+.tnotice { margin: var(--s2) 0 0; font-size: var(--fs-s); }
+.tfoot { margin: var(--s2) 0 0; border-top: 1px solid var(--line); padding-top: var(--s3); }

@@ -1,5 +1,5 @@
 // Service worker: cache-first shell, network-only for Supabase. Bump CACHE on every shell change.
-const CACHE = 'lifeos-v1-4';
+const CACHE = 'lifeos-v1-5';
 const SHELL = [
   './',
   'index.html',
@@ -28,6 +28,8 @@ const SHELL = [
   'js/lib/rituals.js',
   'js/ui/auth-view.js',
   'js/ui/dom.js',
+  'js/ui/today-model.js',
+  'js/ui/today-view.js',
   'js/views/placeholder.js',
   'vendor/VERSIONS.md',
   'vendor/supabase.js',
