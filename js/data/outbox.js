@@ -27,7 +27,7 @@ export function createOutbox({ backend, storage, onChange = () => {}, onAuthErro
     ? backend.remove(op.table, { eq: op.eq })
     : backend.upsert(op.table, op.rows, { onConflict: op.onConflict, ignoreDuplicates: op.ignoreDuplicates });
 
-  async function doFlush(myGen) {
+  async function doFlush(myGen, silentAuth) {
     let sent = 0;
     let authStop = false;
     const failed = [];
@@ -56,11 +56,11 @@ export function createOutbox({ backend, storage, onChange = () => {}, onAuthErro
       await persist();
       onChange(ops.length);
     }
-    if (authStop && onAuthError) {
+    if (authStop && onAuthError && !silentAuth) {
       // Once per run, after this flush has settled, so a recovery can start a fresh flush.
       setTimeout(() => { try { Promise.resolve(onAuthError()).catch(() => {}); } catch { /* ignore */ } }, 0);
     }
-    return { sent, remaining: ops.length, failed };
+    return authStop ? { sent, remaining: ops.length, failed, authStop: true } : { sent, remaining: ops.length, failed };
   }
 
   return {
@@ -73,13 +73,13 @@ export function createOutbox({ backend, storage, onChange = () => {}, onAuthErro
       await persist();
       onChange(ops.length);
     },
-    flush() {
+    flush({ silentAuth = false } = {}) {
       if (running && runningGen === gen) return running;
       const prev = running;
       runningGen = gen;
       const g = gen;
       const p = (prev ? prev.catch(() => {}) : Promise.resolve())
-        .then(() => doFlush(g))
+        .then(() => doFlush(g, silentAuth))
         .finally(() => { if (running === p) running = null; });
       running = p;
       return p;

@@ -135,7 +135,9 @@ async function start(root, setBanner) {
   // Auth transitions run one at a time, in order.
   let chain = Promise.resolve();
   const enqueue = (fn) => { chain = chain.then(fn).catch(() => {}); return chain; };
-  const apply = (event, session, error = null) => (authGate(event, session) === 'app'
+  const apply = (event, session, error = null) => (event === 'SIGNED_OUT' && app.mode === 'login'
+    ? undefined // already handled by toLogin (e.g. a recovery sign-out that kept the queue)
+    : authGate(event, session) === 'app'
     ? app.toApp()
     : app.toLogin({
       clear: shouldClearOutbox({ event, error, session }),
@@ -144,8 +146,9 @@ async function start(root, setBanner) {
 
   recovery = createAuthRecovery({
     client,
-    onLoggedOut: () => app.toLogin(),
-    retryFlush: () => outbox.flush(),
+    onLoggedOut: (opts) => app.toLogin(opts),
+    onDeferred: () => { if (app.mode === 'app') setBanner('Could not check your session. Check your connection.'); },
+    retryFlush: () => outbox.flush({ silentAuth: true }),
   });
 
   // Read path: one recovery attempt (refresh, flush retry); if recovered, retry the read once.
@@ -160,7 +163,7 @@ async function start(root, setBanner) {
           if (!isAuth(e2)) throw e2;
         }
         try { await client.auth.signOut({ scope: 'local' }); } catch { /* fall through to login */ }
-        await app.toLogin();
+        await app.toLogin({ clear: false });
       }
       throw e;
     }
