@@ -42,8 +42,16 @@ test('books is created before daily', () => {
   assert.ok(mig.indexOf('create table public.books') < mig.indexOf('create table public.daily'));
 });
 
-test('rls.sql is wrapped and ends with rollback', () => {
+test('rls.sql is wrapped in begin/rollback and ends with the RLS OK select', () => {
   assert.ok(/^\s*begin;/m.test(rls));
-  assert.ok(rls.includes("select 'rls ok' as result;"));
-  assert.ok(rls.trim().endsWith('rollback;'));
+  assert.ok(/^rollback;/m.test(rls));
+  assert.ok(rls.trim().endsWith("select 'rls ok' as result;"));
+  assert.ok(rls.lastIndexOf('rollback;') < rls.lastIndexOf("select 'rls ok' as result;"));
+});
+
+test('V1_TABLES lists every parent before its child', () => {
+  const i = (t) => V1_TABLES.indexOf(t);
+  assert.ok(i('habits') < i('habit_logs'));
+  assert.ok(i('rituals') < i('ritual_logs'));
+  assert.ok(i('books') < i('daily'));
 });

@@ -113,6 +113,6 @@ begin
   end loop;
 end $$;
 
-reset role;
-select 'RLS OK' as result;
 rollback;
+-- Reached only if every assertion above passed (a failure aborts the script).
+select 'RLS OK' as result;
