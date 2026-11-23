@@ -1,15 +1,15 @@
 // Calendar tab: 7-day agenda plus a quick-add form pinned above the tab bar. Writes are optimistic.
 import { h } from './dom.js';
 import { agenda } from '../lib/agenda.js';
-import { validateEvent } from '../lib/event-form.js';
-import { formatDayLabel, isNewDay, localDateKey } from '../lib/dates.js';
+import { validateEvent, splitWindow } from '../lib/event-form.js';
+import { formatDayLabel, addDays, isNewDay, localDateKey } from '../lib/dates.js';
 import * as repo from '../data/repo.js';
 
 export { validateEvent };
 
 // UI-only state; survives re-renders but not reloads. draft.date null = "today".
 const blank = () => ({ id: null, title: '', date: null, start: '', end: '', location: '' });
-const ui = { draft: blank(), notice: '', confirmDelete: false, focusNext: null };
+const ui = { draft: blank(), notice: '', info: false, confirmDelete: false, focusNext: null };
 
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '');
 
@@ -32,7 +32,7 @@ function commit(app, mutate, write) {
   app.rerender();
   let p;
   try { p = Promise.resolve(write()); } catch (e) { p = Promise.reject(e); }
-  p.then(() => {}, () => { ui.notice = 'Could not save that. Try again.'; return app.refresh(); }).catch(() => {});
+  p.then(() => {}, () => { ui.notice = 'Could not save that. Try again.'; ui.info = false; return app.refresh(); }).catch(() => {});
 }
 
 function submit(app) {
@@ -41,7 +41,7 @@ function submit(app) {
   const date = d.date ?? app.todayKey;
   const candidate = { title: d.title, date, start_time: d.start, end_time: d.end };
   const err = validateEvent(candidate);
-  if (err) { ui.notice = err; app.rerender(); return; }
+  if (err) { ui.notice = err; ui.info = false; app.rerender(); return; }
   const prev = d.id ? app.snapshot.events.find((e) => e.id === d.id) : null;
   const row = {
     ...(prev ?? {}),
@@ -55,6 +55,9 @@ function submit(app) {
   const editing = Boolean(d.id);
   reset();
   ui.notice = '';
+  ui.info = false;
+  if (date > addDays(app.todayKey, 6)) { ui.notice = `Saved for ${formatDayLabel(date)}, shown under Later`; ui.info = true; }
+  else if (date < app.todayKey) { ui.notice = `Saved for ${formatDayLabel(date)}`; ui.info = true; }
   commit(app, (s) => {
     s.events = editing ? s.events.map((e) => (e.id === row.id ? row : e)) : [...s.events, row];
   }, () => repo.saveEvent(app.ctx, row));
@@ -104,7 +107,7 @@ function labelled(text, control) {
 function agendaItem(app, it, byId) {
   if (it.kind === 'ritual') {
     return h('div', { class: 'citem is-ritual' },
-      h('span', { class: 'num ctime' }, it.time ?? ''),
+      h('span', { class: 'num ctime' }, hhmm(it.time)),
       h('span', { class: 'ellip grow' }, it.title));
   }
   const e = byId.get(it.id);
@@ -119,6 +122,19 @@ function agendaItem(app, it, byId) {
   h('span', { class: 'cbody' },
     h('span', { class: 'ellip' }, it.title),
     e.location ? h('span', { class: 'muted ellip' }, e.location) : null));
+}
+
+function laterItem(app, e) {
+  const selected = ui.draft.id === e.id;
+  const time = e.start_time ? `${hhmm(e.start_time)}${e.end_time ? `\u2013${hhmm(e.end_time)}` : ''}` : '';
+  return h('button', {
+    type: 'button', class: `tap citem is-event${selected ? ' is-selected' : ''}`, 'aria-pressed': selected ? 'true' : 'false',
+    onClick: () => select(app, e),
+  },
+  h('span', { class: 'num ctime' }, formatDayLabel(e.date)),
+  h('span', { class: 'cbody' },
+    h('span', { class: 'ellip' }, e.title),
+    h('span', { class: 'muted ellip' }, [time, e.location].filter(Boolean).join(' \u00b7 ') || null)));
 }
 
 function form(app) {
@@ -142,7 +158,7 @@ function form(app) {
     h('button', { type: 'submit', class: 'tap chip chip-strong cadd' }, editing ? 'Save' : 'Add')),
   h('div', { class: 'crow3' }, labelled('Date', date), labelled('Start', start), labelled('End', end)),
   loc,
-  err ? h('p', { class: 'danger cnotice', role: 'status' }, err) : null,
+  err ? h('p', { class: `cnotice${ui.info ? ' muted' : ' danger'}`, role: 'status' }, err) : null,
   editing
     ? h('button', {
       type: 'button', class: `tap chip cdelete${ui.confirmDelete ? ' is-confirm' : ''}`, onClick: () => remove(app),
@@ -160,6 +176,8 @@ export function renderCalendar(root, app) {
   syncToday(app);
   const events = app.snapshot.events ?? [];
   const byId = new Map(events.map((e) => [e.id, e]));
+  const { later } = splitWindow(events, app.todayKey, 7);
+  const laterShown = later.slice(0, 20);
   const days = agenda(events, app.snapshot.rituals ?? [], app.todayKey, 7);
 
   root.replaceChildren(
@@ -170,6 +188,9 @@ export function renderCalendar(root, app) {
         day.items.length
           ? day.items.map((it) => agendaItem(app, it, byId))
           : h('p', { class: 'muted cempty' }, 'Nothing planned'))),
+      laterShown.length ? h('section', { class: 'cday', 'aria-label': 'Later' },
+        h('h2', { class: 'cap cdayhead' }, 'Later'),
+        laterShown.map((e) => laterItem(app, e))) : null,
       form(app)),
   );
 }

@@ -166,8 +166,8 @@ button.chip {
 }
 .chip:active { background: var(--line); }
 .chip.is-done { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.chip-strong { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
-.chip-strong:active { background: var(--fg); opacity: 0.85; }
+button.chip.chip-strong { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+button.chip.chip-strong:active { background: var(--fg); opacity: 0.85; }
 .chip.mood { min-width: 44px; padding: 0; }
 .tbook { flex: 1; text-align: right; font-size: var(--fs-s); }
 .tinline { display: flex; gap: var(--s2); padding-bottom: var(--s2); }
@@ -209,5 +209,3 @@ button.cadd { min-height: 44px; min-width: 64px; }
 .cnotice { margin: 0; font-size: var(--fs-s); }
 button.cdelete { align-self: flex-start; min-height: 44px; color: var(--danger); border-color: var(--line); }
 button.cdelete.is-confirm { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
-button.cadd { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
-button.cadd:active { background: var(--fg); opacity: 0.85; }

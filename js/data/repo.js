@@ -3,6 +3,14 @@ import { V1_TABLES } from './tables.js';
 import { DEFAULT_RITUALS } from '../lib/rituals.js';
 import { addDays, parseDateKey, weekStart } from '../lib/dates.js';
 
+// PostgREST returns time columns as 'HH:MM:SS[.fff]'; all logic uses 'HH:MM'.
+export function normalizeTime(t) {
+  if (t === null || t === undefined || t === '') return null;
+  return String(t).slice(0, 5);
+}
+const EVENT_PAST_DAYS = 1;
+const EVENT_FUTURE_DAYS = 90;
+
 const iso = (v) => (v instanceof Date ? v.toISOString() : v);
 const upsertOp = (table, rows, onConflict, ignoreDuplicates) => ({
   kind: 'upsert', table, rows, onConflict, ...(ignoreDuplicates ? { ignoreDuplicates: true } : {}),
@@ -24,6 +32,7 @@ export async function loadSnapshot(ctx, todayKey, { pastDays = 42, futureDays = 
   const range = { gte: { date: from }, lte: { date: to }, order: ['date', true] };
   const fromTs = parseDateKey(from).toISOString();
   const toTs = parseDateKey(addDays(to, 1)).toISOString();
+  const evRange = { gte: { date: addDays(todayKey, -EVENT_PAST_DAYS) }, lte: { date: addDays(todayKey, EVENT_FUTURE_DAYS) }, order: ['date', true] };
   const b = ctx.backend;
   const [settings, habits, habitLogs, rituals, ritualLogs, events, sleep, water, daily, books, reviews] = await Promise.all([
     b.select('settings', {}),
@@ -31,15 +40,17 @@ export async function loadSnapshot(ctx, todayKey, { pastDays = 42, futureDays = 
     b.select('habit_logs', range),
     b.select('rituals', {}),
     b.select('ritual_logs', { gte: { week_start: weekStart(from) }, lte: { week_start: to }, order: ['week_start', true] }),
-    b.select('events', range),
+    b.select('events', evRange),
     b.select('sleep', { gte: { night_of: from }, lte: { night_of: to }, order: ['night_of', true] }),
     b.select('water', { gte: { at: fromTs }, lte: { at: toTs }, order: ['at', true] }),
     b.select('daily', range),
     b.select('books', {}),
     b.select('reviews', { gte: { week_start: weekStart(from) }, lte: { week_start: to }, order: ['week_start', true] }),
   ]);
+  const fixEvent = (e) => ({ ...e, start_time: normalizeTime(e.start_time), end_time: normalizeTime(e.end_time) });
+  const fixRitual = (r) => ({ ...r, time: normalizeTime(r.time) });
   return {
-    settings: settings[0] ?? null, habits, habitLogs, rituals, ritualLogs, events, sleep,
+    settings: settings[0] ?? null, habits, habitLogs, rituals: rituals.map(fixRitual), ritualLogs, events: events.map(fixEvent), sleep,
     water: water.filter((w) => w.at < toTs), daily, books, reviews,
   };
 }

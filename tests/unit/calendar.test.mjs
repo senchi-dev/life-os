@@ -34,3 +34,18 @@ test('end without start is rejected', () => {
   assert.equal(validateEvent({ ...ok, start_time: '', end_time: '09:00' }), 'Add a start time first');
   assert.equal(validateEvent({ ...ok, start_time: null, end_time: '09:00' }), 'Add a start time first');
 });
+
+import { splitWindow } from '../../js/lib/event-form.js';
+
+test('splitWindow: day 6 inside, day 7 later, yesterday excluded, sorted', () => {
+  const ev = (id, date, start_time = null) => ({ id, title: id, date, start_time });
+  const today = '2026-11-23';
+  const events = [
+    ev('later2', '2026-12-31', '09:00'), ev('past', '2026-11-22'), ev('d7', '2026-11-30'),
+    ev('d6b', '2026-11-29', '18:00'), ev('d6a', '2026-11-29', '08:00'), ev('later1', '2026-12-01'),
+    ev('later1b', '2026-12-01', '07:00'),
+  ];
+  const { inWindow, later } = splitWindow(events, today, 7);
+  assert.deepEqual(inWindow.map((e) => e.id), ['d6a', 'd6b']);
+  assert.deepEqual(later.map((e) => e.id), ['d7', 'later1', 'later1b', 'later2']);
+});

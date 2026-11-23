@@ -151,3 +151,33 @@ test('demoSeed shape and double-missed Read habit', async () => {
   assert.equal(snap.events.length, 5);
   assert.equal(snap.water.length, 1);
 });
+
+test('normalizeTime', () => {
+  assert.equal(repo.normalizeTime(null), null);
+  assert.equal(repo.normalizeTime(undefined), null);
+  assert.equal(repo.normalizeTime('14:00'), '14:00');
+  assert.equal(repo.normalizeTime('14:00:00'), '14:00');
+  assert.equal(repo.normalizeTime('09:05:00.123'), '09:05');
+});
+
+test('loadSnapshot normalizes HH:MM:SS times and gives events a 90-day window', async () => {
+  const { addDays } = await import('../../js/lib/dates.js');
+  const today = '2026-11-23';
+  const ev = (id, date, s, e) => ({ id, title: id, date, start_time: s, end_time: e, location: null });
+  const { ctx } = await mk({
+    events: [
+      ev('a', today, '14:00:00', '15:30:00'), ev('y', addDays(today, -1), '10:00:00', null),
+      ev('far60', addDays(today, 60), null, null), ev('far120', addDays(today, 120), null, null),
+      ev('old', addDays(today, -2), null, null),
+    ],
+    rituals: [{ id: 'r', name: 'R', weekday: 1, time: '19:30:00', checklist: [] }],
+  });
+  const snap = await repo.loadSnapshot(ctx, today);
+  const ids = snap.events.map((e) => e.id).sort();
+  assert.deepEqual(ids, ['a', 'far60', 'y']);
+  const a = snap.events.find((e) => e.id === 'a');
+  assert.equal(a.start_time, '14:00');
+  assert.equal(a.end_time, '15:30');
+  assert.equal(snap.events.find((e) => e.id === 'far60').start_time, null);
+  assert.equal(snap.rituals.find((r) => r.id === 'r').time, '19:30');
+});
