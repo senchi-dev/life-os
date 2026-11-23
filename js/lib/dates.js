@@ -46,3 +46,8 @@ export function formatDayLabel(key) {
   return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
     .format(parseDateKey(key)).replace(',', '');
 }
+
+// True when the local calendar date of `now` differs from the cached todayKey (app left open past midnight).
+export function isNewDay(todayKey, now = new Date()) {
+  return localDateKey(now) !== todayKey;
+}

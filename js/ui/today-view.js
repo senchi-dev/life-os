@@ -4,12 +4,29 @@ import { buildTodayModel } from './today-model.js';
 import { nextStatus } from '../lib/habits.js';
 import { toggleItem } from '../lib/rituals.js';
 import { LITER_CHIPS, PAGE_CHIPS, buildSleep, formatDuration, parseLiters } from '../lib/health.js';
-import { nowHHMM } from '../lib/dates.js';
+import { nowHHMM, isNewDay, localDateKey } from '../lib/dates.js';
 import * as repo from '../data/repo.js';
 
 // UI-only state; survives re-renders but not reloads.
-const ui = { rituals: new Set(), waterOpen: false, sleepEdit: false, pagesEdit: false, notice: '', focus: null };
+const ui = { rituals: new Set(), waterOpen: false, sleepEdit: false, pagesEdit: false, notice: '', focusNext: null, draft: { water: null, pages: null } };
 let pendingEl = null;
+let midnightTimer = null;
+
+// The app may stay open past local midnight: move to the new day before reading or writing anything.
+function syncToday(app) {
+  const now = new Date();
+  if (!isNewDay(app.todayKey, now)) return false;
+  app.todayKey = localDateKey(now);
+  app.refresh();
+  return true;
+}
+
+function scheduleMidnight(app) {
+  clearTimeout(midnightTimer);
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 500);
+  midnightTimer = setTimeout(() => { if (!syncToday(app)) app.rerender?.(); }, Math.max(1000, next - now));
+}
 
 const uid = () => crypto.randomUUID();
 const fmtL = (x) => String(Math.round(x * 100) / 100);
@@ -29,8 +46,9 @@ function commit(app, mutate, write) {
   app.rerender();
   let p;
   try { p = Promise.resolve(write()); } catch (e) { p = Promise.reject(e); }
-  p.then(() => {}, () => { setNotice('Could not save that. Try again.'); app.refresh(); });
-  p.finally(() => { refreshPending(app); setTimeout(() => refreshPending(app), 900); setTimeout(() => refreshPending(app), 4000); });
+  p.then(() => {}, () => { setNotice('Could not save that. Try again.'); return app.refresh(); })
+    .catch(() => {})
+    .finally(() => { refreshPending(app); setTimeout(() => refreshPending(app), 900); setTimeout(() => refreshPending(app), 4000); });
 }
 
 function upsertBy(rows, match, patch, make) {
@@ -41,6 +59,7 @@ function upsertBy(rows, match, patch, make) {
 
 // ---- actions ----
 function setHabit(app, id, status) {
+  syncToday(app);
   const today = app.todayKey;
   commit(app, (s) => {
     s.habitLogs = s.habitLogs.filter((l) => !(l.habit_id === id && l.date === today));
@@ -49,7 +68,9 @@ function setHabit(app, id, status) {
 }
 
 function addWater(app, liters) {
+  syncToday(app);
   ui.waterOpen = false;
+  ui.draft.water = null;
   ui.notice = '';
   let row;
   try { row = repo.addWater(app.ctx, liters); } catch { setNotice('Could not save that. Try again.'); app.rerender(); return; }
@@ -60,10 +81,12 @@ function addWater(app, liters) {
 }
 
 function undoWater(app, id) {
+  syncToday(app);
   commit(app, (s) => { s.water = s.water.filter((w) => w.id !== id); }, () => repo.removeWater(app.ctx, id));
 }
 
 function confirmSleep(app, bed, wake) {
+  syncToday(app);
   let built;
   try { built = buildSleep({ wakeDateKey: app.todayKey, bed, wake }); } catch {
     setNotice('Check the times: sleep must be under 20 hours.');
@@ -79,6 +102,7 @@ function confirmSleep(app, bed, wake) {
 }
 
 function setDaily(app, patch, bookId) {
+  syncToday(app);
   const today = app.todayKey;
   const write = bookId ? { ...patch, book_id: bookId } : patch;
   commit(app, (s) => upsertBy(s.daily, (d) => d.date === today, write, { id: uid(), date: today, pages: 0, mood: null, book_id: null }),
@@ -86,6 +110,7 @@ function setDaily(app, patch, bookId) {
 }
 
 function toggleRitual(app, entry, i) {
+  syncToday(app);
   const n = entry.ritual.checklist.length;
   const next = toggleItem(entry.state, i, n);
   commit(app, (s) => upsertBy(s.ritualLogs, (l) => l.ritual_id === entry.ritual.id && l.week_start === entry.weekStart,
@@ -143,31 +168,39 @@ function ritualBlock(app, entry) {
 }
 
 function habitCell(app, hb) {
-  const sub = hb.status === 'done' ? null
-    : hb.status === 'skipped' ? 'skipped'
-    : hb.flag === 'red' ? 'missed twice'
-    : hb.flag === 'warn' ? 'missed yesterday' : null;
+  const flagText = hb.flag === 'red' ? 'missed twice' : hb.flag === 'warn' ? 'missed yesterday' : null;
+  const flag = hb.status ? null : flagText;
+  const streakText = hb.streak > 0 ? (hb.status === 'done' ? `streak ${hb.streak}` : `${hb.streak}d`) : null;
+  const sub = [hb.status === 'done' ? 'done' : hb.status === 'skipped' ? 'skipped' : null, streakText].filter(Boolean).join(' \u00b7 ');
+  const label = [hb.name, hb.status ?? 'not done', hb.streak > 0 ? `streak ${hb.streak} days` : null, flag].filter(Boolean).join(', ');
   const el = h('button', {
-    type: 'button', class: `tap habit${hb.status ? ` is-${hb.status}` : ''}`, 'aria-pressed': hb.status === 'done' ? 'true' : 'false',
-    'aria-label': `${hb.name}${hb.status ? `, ${hb.status}` : ''}`,
+    type: 'button', class: `tap habit${hb.status ? ` is-${hb.status}` : ''}`, 'aria-label': label,
   },
-  h('span', { class: 'ellip hname' }, hb.name),
+  h('span', { class: 'hrow' },
+    h('span', { class: 'ellip hname' }, hb.name),
+    hb.status === 'done' ? h('span', { class: 'hcheck', 'aria-hidden': 'true' }, '\u2713') : null),
   h('span', { class: 'hsub' },
-    hb.streak > 0 ? h('span', { class: 'num' }, `${hb.streak}d`) : null,
-    sub ? h('span', { class: hb.status ? '' : hb.flag === 'red' ? 'danger' : '' }, sub) : null));
+    sub ? h('span', { class: 'num' }, sub) : null,
+    flag ? h('span', { class: hb.flag === 'red' ? 'danger' : '' }, flag) : null));
   return holdTap(el,
     () => setHabit(app, hb.id, nextStatus(hb.status, 'tap')),
     () => setHabit(app, hb.id, nextStatus(hb.status, 'hold')));
 }
 
-function inlineInput({ type = 'text', inputmode, placeholder, label, value, onSubmit, submitText, error }) {
+function inlineInput({ type = 'text', inputmode, placeholder, label, value, draftKey, onSubmit, submitText, error }) {
   const input = h('input', {
-    class: 'field tfield', type, inputmode, placeholder, 'aria-label': label, value: value ?? '', autocomplete: 'off',
+    class: 'field tfield', type, inputmode, placeholder, 'aria-label': label, value: ui.draft[draftKey] ?? value ?? '', autocomplete: 'off', 'data-draft': draftKey,
     ...(error ? { 'aria-invalid': 'true' } : {}),
   });
   const go = () => onSubmit(input.value);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
-  queueMicrotask(() => { try { input.focus({ preventScroll: true }); } catch { /* ignore */ } });
+  input.addEventListener('input', () => { ui.draft[draftKey] = input.value; });
+  if (ui.focusNext === draftKey) {
+    ui.focusNext = null;
+    queueMicrotask(() => {
+      try { input.focus({ preventScroll: true }); const n = input.value.length; input.setSelectionRange(n, n); } catch { /* ignore */ }
+    });
+  }
   return [input, h('button', { type: 'button', class: 'tap chip', onClick: go }, submitText)];
 }
 
@@ -175,13 +208,13 @@ function waterSection(app, m) {
   const over = m.water.total >= m.water.target;
   const chips = [
     ...LITER_CHIPS.map((l) => chip(`+${fmtL(l)}`, () => addWater(app, l))),
-    chip('+…', () => { ui.waterOpen = !ui.waterOpen; app.rerender(); }, { 'aria-expanded': ui.waterOpen ? 'true' : 'false', 'aria-label': 'Other amount' }),
+    chip('+…', () => { ui.waterOpen = !ui.waterOpen; ui.notice = ''; ui.draft.water = null; ui.focusNext = ui.waterOpen ? 'water' : null; app.rerender(); }, { 'aria-expanded': ui.waterOpen ? 'true' : 'false', 'aria-label': 'Other amount' }),
   ];
   const nodes = [row('Water', h('span', { class: `num${over ? ' is-done-text' : ''}` }, `${fmtL(m.water.total)} / ${fmtL(m.water.target)} L`), chips)];
   if (ui.waterOpen) {
     const err = ui.notice.startsWith('Water');
     nodes.push(h('div', { class: 'tinline' }, inlineInput({
-      inputmode: 'decimal', placeholder: 'Liters, e.g. 0,33', label: 'Liters', submitText: 'Add', error: err,
+      draftKey: 'water', inputmode: 'decimal', placeholder: 'Liters, e.g. 0,33', label: 'Liters', submitText: 'Add', error: err,
       onSubmit: (v) => {
         const l = parseLiters(v);
         if (l === null) { setNotice('Water: enter an amount up to 3 L, like 0,33.'); app.rerender(); return; }
@@ -220,19 +253,20 @@ function pagesSection(app, m) {
   const bookId = book?.id ?? null;
   const total = ui.pagesEdit
     ? null
-    : h('button', { type: 'button', class: 'tap link num', 'aria-label': 'Correct today’s pages', onClick: () => { ui.pagesEdit = true; app.rerender(); } }, `${m.pages.today} today`);
+    : h('button', { type: 'button', class: 'tap link num', 'aria-label': 'Correct today’s pages', onClick: () => { ui.pagesEdit = true; ui.notice = ''; ui.draft.pages = null; ui.focusNext = 'pages'; app.rerender(); } }, `${m.pages.today} today`);
   const nodes = [row('Pages', total ?? h('span', { class: 'num' }, `${m.pages.today} today`),
     ...PAGE_CHIPS.map((n) => chip(`+${n}`, () => setDaily(app, { pages: m.pages.today + n }, bookId))),
     book ? h('span', { class: 'muted ellip tbook' }, book.title) : null)];
   if (ui.pagesEdit) {
     const err = ui.notice.startsWith('Pages');
     nodes.push(h('div', { class: 'tinline' }, inlineInput({
-      inputmode: 'numeric', placeholder: 'Pages today', label: 'Pages today', value: String(m.pages.today), submitText: 'Set', error: err,
+      draftKey: 'pages', inputmode: 'numeric', placeholder: 'Pages today', label: 'Pages today', value: String(m.pages.today), submitText: 'Set', error: err,
       onSubmit: (v) => {
         const t = String(v).trim();
         const n = /^\d{1,4}$/.test(t) ? Number(t) : null;
         if (n === null) { setNotice('Pages: enter a whole number.'); app.rerender(); return; }
         ui.pagesEdit = false;
+        ui.draft.pages = null;
         setDaily(app, { pages: n }, bookId);
       },
     })));
@@ -254,6 +288,10 @@ export function renderToday(root, app) {
     root.replaceChildren(h('h1', {}, 'Today'), h('p', { class: 'muted' }, 'Loading…'));
     return;
   }
+  const active = root.contains(document.activeElement) ? document.activeElement.dataset?.draft : null;
+  if (active) ui.focusNext = active;
+  syncToday(app);
+  scheduleMidnight(app);
   const now = nowHHMM();
   const m = buildTodayModel(app.snapshot, app.todayKey, now);
 

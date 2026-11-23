@@ -78,3 +78,25 @@ test('first run: empty snapshot uses defaults and does not throw', () => {
   assert.equal(m.pages.book, null);
   assert.equal(m.water.last, null);
 });
+
+import { isNewDay, localDateKey } from '../../js/lib/dates.js';
+
+test('isNewDay compares the local date of now with todayKey', () => {
+  assert.equal(isNewDay(TODAY, new Date(2026, 10, 23, 23, 59)), false);
+  assert.equal(isNewDay(TODAY, new Date(2026, 10, 24, 0, 30)), true);
+  assert.equal(isNewDay('2026-11-24', new Date(2026, 10, 24, 0, 30)), false);
+});
+
+test('water at 00:30 on the new day counts for the new day, 23:30 the day before does not', () => {
+  const s = fresh();
+  const NEW = '2026-11-24';
+  s.water = [
+    { id: 'a', at: new Date(2026, 10, 23, 23, 30).toISOString(), liters: 1 },
+    { id: 'b', at: new Date(2026, 10, 24, 0, 30).toISOString(), liters: 0.5 },
+  ];
+  assert.equal(localDateKey(new Date(s.water[1].at)), NEW);
+  const m = buildTodayModel(s, NEW, '00:31');
+  assert.equal(m.water.total, 0.5);
+  assert.equal(m.water.last.id, 'b');
+  assert.equal(buildTodayModel(s, TODAY, '23:45').water.total, 1);
+});

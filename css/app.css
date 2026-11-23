@@ -150,6 +150,8 @@ button.habit {
 .habit:active { background: var(--line); }
 .habit.is-done { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 .habit.is-skipped { border-style: dashed; color: var(--muted); }
+.hrow { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); width: 100%; min-width: 0; }
+.hcheck { flex: none; font-weight: 600; }
 .hname { max-width: 100%; font-weight: 500; }
 .hsub { display: flex; gap: var(--s2); font-size: var(--fs-s); color: var(--muted); max-width: 100%; white-space: nowrap; overflow: hidden; }
 .habit.is-done .hsub { color: inherit; }
