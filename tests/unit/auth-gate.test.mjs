@@ -60,3 +60,13 @@ test('signOutEverywhere: global error result also falls back to local', async ()
   await assert.rejects(() => signOutEverywhere(app));
   assert.deepEqual(calls, ['global', 'local', 'login']);
 });
+
+import { shouldClearOutbox } from '../../js/lib/auth-gate.js';
+test('shouldClearOutbox: only explicit sign-out or a clean "no session"', () => {
+  assert.equal(shouldClearOutbox({ event: 'SIGNED_OUT', session: null, error: null }), true);
+  assert.equal(shouldClearOutbox({ event: 'INITIAL_SESSION', session: null, error: new Error('net') }), false);
+  assert.equal(shouldClearOutbox({ event: 'INITIAL_SESSION', session: null, error: null }), true);
+  for (const event of ['INITIAL_SESSION', 'TOKEN_REFRESHED', 'SIGNED_IN']) {
+    assert.equal(shouldClearOutbox({ event, session: { user: {} }, error: null }), false, event);
+  }
+});

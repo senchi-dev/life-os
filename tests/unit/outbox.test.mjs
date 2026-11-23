@@ -141,3 +141,22 @@ test('after clear(), storage holds only ops enqueued afterwards', async () => {
   assert.equal(saved[0].rows[0].tag, 'B');
   assert.equal(ob.pending(), 1);
 });
+
+test('onAuthError fires once per flush run on auth stop, never for network/server errors', async () => {
+  const mk = (kind) => ({
+    upsert: async () => { throw Object.assign(new Error('x'), { kind }); },
+    remove: async () => {},
+  });
+  const run = async (kind) => {
+    let n = 0;
+    const ob = createOutbox({ backend: mk(kind), storage: createMemoryStorage(), onAuthError: () => { n++; } });
+    await ob.init();
+    await ob.enqueue(A); await ob.enqueue(B);
+    await ob.flush();
+    await new Promise((r) => setTimeout(r, 10));
+    return { n, pending: ob.pending() };
+  };
+  assert.deepEqual(await run('auth'), { n: 1, pending: 2 });
+  assert.equal((await run('network')).n, 0);
+  assert.equal((await run('server')).n, 0);
+});

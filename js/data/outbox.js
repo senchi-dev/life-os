@@ -10,7 +10,7 @@ export function createMemoryStorage() {
   };
 }
 
-export function createOutbox({ backend, storage, onChange = () => {} }) {
+export function createOutbox({ backend, storage, onChange = () => {}, onAuthError = null }) {
   let ops = [];
   let running = null;
   let runningGen = -1;
@@ -29,6 +29,7 @@ export function createOutbox({ backend, storage, onChange = () => {} }) {
 
   async function doFlush(myGen) {
     let sent = 0;
+    let authStop = false;
     const failed = [];
     while (gen === myGen && ops.length) {
       const op = ops[0];
@@ -38,6 +39,7 @@ export function createOutbox({ backend, storage, onChange = () => {} }) {
         } catch (err) {
           if (gen !== myGen) break;
           const kind = err?.kind ?? classifyError(err);
+          if (kind === 'auth') authStop = true;
           if (kind === 'network' || kind === 'auth') break;
           if (ops[0] !== op) break;
           ops.shift();
@@ -53,6 +55,10 @@ export function createOutbox({ backend, storage, onChange = () => {} }) {
       ops.shift();
       await persist();
       onChange(ops.length);
+    }
+    if (authStop && onAuthError) {
+      // Once per run, after this flush has settled, so a recovery can start a fresh flush.
+      setTimeout(() => { try { Promise.resolve(onAuthError()).catch(() => {}); } catch { /* ignore */ } }, 0);
     }
     return { sent, remaining: ops.length, failed };
   }

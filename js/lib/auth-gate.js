@@ -18,3 +18,12 @@ export function authMessage(err, step) {
   if (err instanceof TypeError || /failed to fetch|network|load failed/i.test(msg)) return OFFLINE;
   return step === 'verify' ? BAD_CODE : NO_SEND;
 }
+
+// The outbox holds unsynced user writes: drop it only on an explicit sign-out, or when the
+// session check succeeded and truly found no session. A failed check (offline, transient) keeps it.
+export function shouldClearOutbox({ event, error, session } = {}) {
+  if (event === 'SIGNED_OUT') return true;
+  if (session) return false;
+  if (error) return false;
+  return true;
+}

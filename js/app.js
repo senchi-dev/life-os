@@ -7,7 +7,8 @@ import { createIdbStorage } from './data/idb.js';
 import { demoSeed } from './data/demo-seed.js';
 import { loadSnapshot } from './data/repo.js';
 import { BackendError } from './data/backend-supabase.js';
-import { authGate } from './lib/auth-gate.js';
+import { authGate, shouldClearOutbox } from './lib/auth-gate.js';
+import { createAuthRecovery } from './lib/auth-recovery.js';
 import { renderAuth } from './ui/auth-view.js';
 import { h } from './ui/dom.js';
 import { localDateKey } from './lib/dates.js';
@@ -82,7 +83,8 @@ async function start(root, setBanner) {
     backend = createSupabaseBackend(client);
     storage = createIdbStorage();
   }
-  const outbox = createOutbox({ backend, storage });
+  let recovery = null;
+  const outbox = createOutbox({ backend, storage, onAuthError: () => recovery?.handleAuthFailure() });
   await outbox.init();
   const ctx = { backend, outbox };
 
@@ -120,12 +122,12 @@ async function start(root, setBanner) {
       app.rerender(); // paint the shell first, data follows
       await app.refresh();
     },
-    async toLogin() {
+    async toLogin({ clear = true, notice = null } = {}) {
       app.mode = 'login';
       app.snapshot = null;
       document.body.dataset.mode = 'auth';
-      setBanner(null);
-      try { await outbox.clear(); } catch { /* queue is dropped from memory either way */ }
+      setBanner(notice);
+      if (clear) try { await outbox.clear(); } catch { /* queue is dropped from memory either way */ }
       renderAuth(root, { client, onSignedIn: (session) => enqueue(() => (authGate('SIGNED_IN', session) === 'app' ? app.toApp() : undefined)) });
     },
   };
@@ -133,26 +135,33 @@ async function start(root, setBanner) {
   // Auth transitions run one at a time, in order.
   let chain = Promise.resolve();
   const enqueue = (fn) => { chain = chain.then(fn).catch(() => {}); return chain; };
-  const apply = (event, session) => (authGate(event, session) === 'app' ? app.toApp() : app.toLogin());
+  const apply = (event, session, error = null) => (authGate(event, session) === 'app'
+    ? app.toApp()
+    : app.toLogin({
+      clear: shouldClearOutbox({ event, error, session }),
+      notice: error ? 'Could not check your session. Check your connection.' : null,
+    }));
 
-  // One refresh attempt on a session error; if it fails, drop the local session and go to login.
+  recovery = createAuthRecovery({
+    client,
+    onLoggedOut: () => app.toLogin(),
+    retryFlush: () => outbox.flush(),
+  });
+
+  // Read path: one recovery attempt (refresh, flush retry); if recovered, retry the read once.
   async function loadSnapshotWithAuthRetry() {
+    const isAuth = (e) => e instanceof BackendError && e.kind === 'auth';
     try {
       return await loadSnapshot(ctx, app.todayKey);
     } catch (e) {
-      if (!(e instanceof BackendError && e.kind === 'auth') || !client) throw e;
-      let ok = false;
-      try {
-        const { data, error } = (await client.auth.refreshSession()) ?? {};
-        ok = !error && !!data?.session;
-      } catch { ok = false; }
-      if (ok) {
+      if (!isAuth(e) || !client) throw e;
+      if ((await recovery.handleAuthFailure()) === 'recovered') {
         try { return await loadSnapshot(ctx, app.todayKey); } catch (e2) {
-          if (!(e2 instanceof BackendError && e2.kind === 'auth')) throw e2;
+          if (!isAuth(e2)) throw e2;
         }
+        try { await client.auth.signOut({ scope: 'local' }); } catch { /* fall through to login */ }
+        await app.toLogin();
       }
-      try { await client.auth.signOut({ scope: 'local' }); } catch { /* fall through to login */ }
-      await app.toLogin();
       throw e;
     }
   }
@@ -175,8 +184,13 @@ async function start(root, setBanner) {
     if (event === 'INITIAL_SESSION') return; // handled by getSession below
     setTimeout(() => enqueue(() => apply(event, session)), 0);
   });
-  const { data } = await client.auth.getSession();
-  await enqueue(() => apply('INITIAL_SESSION', data?.session ?? null));
+  let initial = null, initialError = null;
+  try {
+    const res = await client.auth.getSession();
+    initial = res?.data?.session ?? null;
+    initialError = res?.error ?? null;
+  } catch (e) { initialError = e ?? new Error('getSession failed'); }
+  await enqueue(() => apply('INITIAL_SESSION', initial, initialError));
 }
 
 if (typeof document !== 'undefined' && typeof location !== 'undefined') boot();
