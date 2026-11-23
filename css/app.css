@@ -95,6 +95,29 @@ button.tap:active { background: var(--line); }
   text-align: center;
 }
 
+/* Auth gate: no tab bar, form fills the screen, primary action sits at the bottom (thumb zone). */
+body[data-mode="auth"] .tabbar { display: none; }
+body[data-mode="auth"] main { padding-bottom: var(--s4); }
+.auth { display: flex; flex-direction: column; min-height: calc(100dvh - 2 * var(--s4) - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+.auth-form { display: flex; flex-direction: column; flex: 1; gap: var(--s4); }
+.auth-body { flex: 1; padding-top: var(--s5); }
+.auth-field { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s4); }
+.auth-field label { font-size: var(--fs-s); color: var(--muted); }
+.field {
+  min-height: 48px; padding: 0 var(--s3);
+  background: transparent; border: 1px solid var(--line); border-radius: var(--radius);
+  font-size: 1rem; /* 16px minimum: no iOS zoom on focus */
+  transition: border-color var(--ease);
+}
+.field:focus { outline: none; border-color: var(--accent); }
+.field[aria-invalid="true"] { border-color: var(--danger); }
+.auth-error { margin: 0; font-size: var(--fs-s); }
+button.primary { width: 100%; min-height: 48px; background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+button.primary:active { background: var(--fg); opacity: 0.85; }
+button.primary:disabled { opacity: 0.5; cursor: default; }
+button.link { border: 0; background: transparent; color: var(--muted); padding: 0; margin-top: var(--s3); justify-content: flex-start; text-decoration: underline; font-size: var(--fs-s); }
+button.link:active { background: transparent; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }

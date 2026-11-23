@@ -6,6 +6,10 @@ import { createOutbox, createMemoryStorage } from './data/outbox.js';
 import { createIdbStorage } from './data/idb.js';
 import { demoSeed } from './data/demo-seed.js';
 import { loadSnapshot } from './data/repo.js';
+import { BackendError } from './data/backend-supabase.js';
+import { authGate } from './lib/auth-gate.js';
+import { renderAuth } from './ui/auth-view.js';
+import { h } from './ui/dom.js';
 import { localDateKey } from './lib/dates.js';
 import { renderToday, renderCalendar, renderReview, renderMore } from './views/placeholder.js';
 
@@ -21,9 +25,46 @@ export function routeFor(hash) {
   return ROUTES.includes(r) ? r : 'today';
 }
 
+export { authGate };
+
+// Global sign-out, then the same local cleanup as any other sign-out. If the global call fails
+// (offline), the local session is still dropped and the error is rethrown so the caller can say so.
+export async function signOutEverywhere(app) {
+  let failure = null;
+  try {
+    const { error } = (await app.client.auth.signOut({ scope: 'global' })) ?? {};
+    if (error) failure = error;
+  } catch (e) {
+    failure = e;
+  }
+  if (failure) {
+    try { await app.client.auth.signOut({ scope: 'local' }); } catch { /* local state is cleared below */ }
+  }
+  await app.toLogin();
+  if (failure) throw failure;
+}
+
 export async function boot() {
   const root = document.getElementById('view');
   const banner = document.getElementById('banner');
+  const setBanner = (text) => { banner.textContent = text ?? ''; banner.hidden = !text; };
+  try {
+    await start(root, setBanner);
+  } catch {
+    // Never leave a blank page: calm banner plus a visible way forward.
+    document.body.dataset.mode = 'auth';
+    setBanner('Could not start the app.');
+    root.replaceChildren(
+      h('section', { class: 'auth' },
+        h('div', { class: 'auth-body' },
+          h('h1', {}, 'Life OS'),
+          h('p', { class: 'muted' }, 'Reload to try again. Your data is safe on the server.')),
+        h('button', { type: 'button', class: 'tap primary', onClick: () => location.reload() }, 'Reload')),
+    );
+  }
+}
+
+async function start(root, setBanner) {
   const demo = isDemoAllowed(location);
 
   if ('serviceWorker' in navigator) {
@@ -45,23 +86,25 @@ export async function boot() {
   await outbox.init();
   const ctx = { backend, outbox };
 
-  const setBanner = (text) => { banner.textContent = text ?? ''; banner.hidden = !text; };
-
   const app = {
     ctx, client, demo,
+    mode: 'login',
     snapshot: null,
     todayKey: localDateKey(new Date()),
     async refresh() {
+      if (app.mode !== 'app') return;
       app.todayKey = localDateKey(new Date());
       try {
-        app.snapshot = await loadSnapshot(ctx, app.todayKey);
+        app.snapshot = await loadSnapshotWithAuthRetry();
         setBanner(demo ? 'Demo mode: sample data, nothing is saved.' : null);
-      } catch {
+      } catch (e) {
+        if (e instanceof BackendError && e.kind === 'auth') return; // already routed to login
         setBanner('Could not load data.');
       }
-      app.rerender();
+      if (app.mode === 'app') app.rerender();
     },
     rerender() {
+      if (app.mode !== 'app') return;
       const route = routeFor(location.hash);
       for (const a of document.querySelectorAll('.tabbar a')) {
         if (a.dataset.route === route) a.setAttribute('aria-current', 'page');
@@ -69,19 +112,71 @@ export async function boot() {
       }
       VIEWS[route](root, app);
     },
+    async toApp() {
+      if (app.mode === 'app') return;
+      app.mode = 'app';
+      document.body.dataset.mode = 'app';
+      setBanner(demo ? 'Demo mode: sample data, nothing is saved.' : null);
+      app.rerender(); // paint the shell first, data follows
+      await app.refresh();
+    },
+    async toLogin() {
+      app.mode = 'login';
+      app.snapshot = null;
+      document.body.dataset.mode = 'auth';
+      setBanner(null);
+      try { await outbox.clear(); } catch { /* queue is dropped from memory either way */ }
+      renderAuth(root, { client, onSignedIn: (session) => enqueue(() => (authGate('SIGNED_IN', session) === 'app' ? app.toApp() : undefined)) });
+    },
   };
 
-  if (demo) setBanner('Demo mode: sample data, nothing is saved.');
+  // Auth transitions run one at a time, in order.
+  let chain = Promise.resolve();
+  const enqueue = (fn) => { chain = chain.then(fn).catch(() => {}); return chain; };
+  const apply = (event, session) => (authGate(event, session) === 'app' ? app.toApp() : app.toLogin());
 
-  app.rerender(); // paint the shell first, data follows
-  addEventListener('hashchange', () => { app.rerender(); root.focus({ preventScroll: true }); window.scrollTo(0, 0); });
-  addEventListener('online', () => { outbox.flush().catch(() => {}); });
+  // One refresh attempt on a session error; if it fails, drop the local session and go to login.
+  async function loadSnapshotWithAuthRetry() {
+    try {
+      return await loadSnapshot(ctx, app.todayKey);
+    } catch (e) {
+      if (!(e instanceof BackendError && e.kind === 'auth') || !client) throw e;
+      let ok = false;
+      try {
+        const { data, error } = (await client.auth.refreshSession()) ?? {};
+        ok = !error && !!data?.session;
+      } catch { ok = false; }
+      if (ok) {
+        try { return await loadSnapshot(ctx, app.todayKey); } catch (e2) {
+          if (!(e2 instanceof BackendError && e2.kind === 'auth')) throw e2;
+        }
+      }
+      try { await client.auth.signOut({ scope: 'local' }); } catch { /* fall through to login */ }
+      await app.toLogin();
+      throw e;
+    }
+  }
+
+  addEventListener('hashchange', () => { app.rerender(); if (app.mode === 'app') { root.focus({ preventScroll: true }); window.scrollTo(0, 0); } });
+  addEventListener('online', () => { if (app.mode === 'app') outbox.flush().catch(() => {}); });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== 'visible' || app.mode !== 'app') return;
     outbox.flush().catch(() => {});
     if (localDateKey(new Date()) !== app.todayKey) app.refresh();
   });
-  await app.refresh();
+
+  if (demo) {
+    await app.toApp();
+    return;
+  }
+
+  // Subscribe first; the callback only enqueues (never awaits client calls inside it).
+  client.auth.onAuthStateChange((event, session) => {
+    if (event === 'INITIAL_SESSION') return; // handled by getSession below
+    setTimeout(() => enqueue(() => apply(event, session)), 0);
+  });
+  const { data } = await client.auth.getSession();
+  await enqueue(() => apply('INITIAL_SESSION', data?.session ?? null));
 }
 
 if (typeof document !== 'undefined' && typeof location !== 'undefined') boot();

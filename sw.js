@@ -1,5 +1,5 @@
 // Service worker: cache-first shell, network-only for Supabase. Bump CACHE on every shell change.
-const CACHE = 'lifeos-v1-1';
+const CACHE = 'lifeos-v1-2';
 const SHELL = [
   './',
   'index.html',
@@ -18,12 +18,14 @@ const SHELL = [
   'js/data/repo.js',
   'js/data/tables.js',
   'js/lib/agenda.js',
+  'js/lib/auth-gate.js',
   'js/lib/crypto-export.js',
   'js/lib/dates.js',
   'js/lib/habits.js',
   'js/lib/health.js',
   'js/lib/review.js',
   'js/lib/rituals.js',
+  'js/ui/auth-view.js',
   'js/ui/dom.js',
   'js/views/placeholder.js',
   'vendor/VERSIONS.md',
@@ -31,7 +33,7 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {

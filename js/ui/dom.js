@@ -1,14 +1,16 @@
 // Tiny DOM helpers. Text goes in as text nodes only; style and raw-HTML props are rejected.
 // Names assembled so the repo-wide grep for the raw-HTML sink stays clean.
-const BANNED_PROPS = new Set(['style', 'inner' + 'HTML', 'outer' + 'HTML']);
+const BANNED_PROPS = new Set(['style', 'inner' + 'html', 'outer' + 'html']); // compared lowercase
 
 export function h(tag, props = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props ?? {})) {
-    if (BANNED_PROPS.has(k)) throw new Error(`h(): "${k}" prop is not allowed`);
+    if (BANNED_PROPS.has(k.toLowerCase())) throw new Error(`h(): "${k}" prop is not allowed`);
     if (v === null || v === undefined || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (/^on[A-Z]/.test(k)) el.addEventListener(k.slice(2).toLowerCase(), v);
+    if (/^on/i.test(k)) {
+      if (typeof v !== 'function') throw new Error(`h(): "${k}" must be a function handler`);
+      el.addEventListener(k.slice(2).toLowerCase(), v);
+    } else if (k === 'class') el.className = v;
     else el.setAttribute(k, v === true ? '' : String(v));
   }
   const add = (c) => {
