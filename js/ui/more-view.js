@@ -1,6 +1,7 @@
 // More tab: targets, habits, rituals, books, encrypted export, account, lost-phone runbook.
 // Sections open in place, one at a time. Writes are optimistic and never block the UI.
 import { h } from './dom.js';
+import { loadingNodes } from './loading.js';
 import { canActivate, MAX_ACTIVE_HABITS } from '../lib/habits.js';
 import { DEFAULT_WATER_TARGET_L, DEFAULT_WEEKLY_PAGES } from '../lib/health.js';
 import { encryptExport, validatePassphrase, exportFileName } from '../lib/crypto-export.js';
@@ -426,7 +427,7 @@ function toggleSection(app, id) {
 
 export function renderMore(root, app) {
   if (!app.snapshot) {
-    root.replaceChildren(h('h1', {}, 'More'), h('p', { class: 'muted' }, 'Loading…'));
+    root.replaceChildren(h('h1', {}, 'More'), ...loadingNodes(app));
     return;
   }
   const ae = document.activeElement;

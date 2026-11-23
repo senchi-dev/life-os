@@ -5,10 +5,11 @@ import { createSupabaseBackend } from './data/backend-supabase.js';
 import { createOutbox, createMemoryStorage } from './data/outbox.js';
 import { createIdbStorage } from './data/idb.js';
 import { demoSeed } from './data/demo-seed.js';
-import { loadSnapshot } from './data/repo.js';
+import { loadSnapshot, ensureDefaults } from './data/repo.js';
 import { BackendError } from './data/backend-supabase.js';
 import { authGate, shouldClearOutbox } from './lib/auth-gate.js';
 import { createAuthRecovery } from './lib/auth-recovery.js';
+import { loadFirst, createResume } from './lib/boot-seed.js';
 import { renderAuth } from './ui/auth-view.js';
 import { h } from './ui/dom.js';
 import { localDateKey } from './lib/dates.js';
@@ -101,6 +102,7 @@ async function start(root, setBanner) {
     ctx, client, demo,
     mode: 'login',
     snapshot: null,
+    loadFailed: false,
     signOut: () => signOutLocal(app),
     signOutEverywhere: async () => {
       try {
@@ -115,10 +117,17 @@ async function start(root, setBanner) {
       if (app.mode !== 'app') return;
       app.todayKey = localDateKey(new Date());
       try {
-        app.snapshot = await loadSnapshotWithAuthRetry();
+        // First load of a session: flush the offline queue (capped) so it is not missing, seed defaults once.
+        const snap = app.snapshot
+          ? await loadSnapshotWithAuthRetry()
+          : await loadFirst({ ctx, load: loadSnapshotWithAuthRetry, ensureDefaults, onLate: () => app.refresh() });
+        if (app.mode !== 'app') return; // signed out while loading
+        app.snapshot = snap;
+        app.loadFailed = false;
         setBanner(demo ? 'Demo mode: sample data, nothing is saved.' : null);
       } catch (e) {
         if (e instanceof BackendError && e.kind === 'auth') return; // already routed to login
+        app.loadFailed = true;
         setBanner('Could not load data.');
       }
       if (app.mode === 'app') app.rerender();
@@ -144,6 +153,7 @@ async function start(root, setBanner) {
     async toLogin({ clear = true, notice = null } = {}) {
       app.mode = 'login';
       app.snapshot = null;
+      app.loadFailed = false;
       resetMore();
       document.body.dataset.mode = 'auth';
       setBanner(notice);
@@ -189,12 +199,37 @@ async function start(root, setBanner) {
     }
   }
 
+  // A getSession that failed offline leaves the login screen with a notice; re-check when back online.
+  let sessionDeferred = false;
+  async function checkSession() {
+    let session = null, error = null;
+    try {
+      const res = await client.auth.getSession();
+      session = res?.data?.session ?? null;
+      error = res?.error ?? null;
+    } catch (e) { error = e ?? new Error('getSession failed'); }
+    sessionDeferred = !!error;
+    return { session, error };
+  }
+  async function recheckSession() {
+    const { session, error } = await checkSession();
+    if (error || app.mode !== 'login') return; // still offline: keep the screen (and the typed email) as is
+    if (session) { await enqueue(() => apply('INITIAL_SESSION', session, null)); return; }
+    try { await outbox.clear(); } catch { /* dropped from memory either way */ }
+    setBanner(null);
+  }
+  const resume = createResume({
+    getMode: () => app.mode, hasSnapshot: () => !!app.snapshot, isSessionDeferred: () => sessionDeferred,
+    flush: () => outbox.flush(), refresh: () => app.refresh(), recheckSession,
+  });
+
   addEventListener('hashchange', () => { app.rerender(); if (app.mode === 'app') { root.focus({ preventScroll: true }); window.scrollTo(0, 0); } });
-  addEventListener('online', () => { if (app.mode === 'app') outbox.flush().catch(() => {}); });
+  addEventListener('online', () => { resume.online(); });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible' || app.mode !== 'app') return;
     outbox.flush().catch(() => {});
     if (localDateKey(new Date()) !== app.todayKey) app.refresh();
+    else resume.visible();
   });
 
   if (demo) {
@@ -207,12 +242,7 @@ async function start(root, setBanner) {
     if (event === 'INITIAL_SESSION') return; // handled by getSession below
     setTimeout(() => enqueue(() => apply(event, session)), 0);
   });
-  let initial = null, initialError = null;
-  try {
-    const res = await client.auth.getSession();
-    initial = res?.data?.session ?? null;
-    initialError = res?.error ?? null;
-  } catch (e) { initialError = e ?? new Error('getSession failed'); }
+  const { session: initial, error: initialError } = await checkSession();
   await enqueue(() => apply('INITIAL_SESSION', initial, initialError));
 }
 

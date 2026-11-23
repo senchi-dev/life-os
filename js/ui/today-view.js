@@ -1,5 +1,6 @@
 // Today screen: one phone screen, every input one tap. Writes are optimistic and never block the UI.
 import { h, longPress } from './dom.js';
+import { loadingNodes } from './loading.js';
 import { buildTodayModel } from './today-model.js';
 import { nextStatus } from '../lib/habits.js';
 import { toggleItem } from '../lib/rituals.js';
@@ -285,7 +286,7 @@ function moodSection(app, m) {
 
 export function renderToday(root, app) {
   if (!app.snapshot) {
-    root.replaceChildren(h('h1', {}, 'Today'), h('p', { class: 'muted' }, 'Loading…'));
+    root.replaceChildren(h('h1', {}, 'Today'), ...loadingNodes(app));
     return;
   }
   const active = root.contains(document.activeElement) ? document.activeElement.dataset?.draft : null;

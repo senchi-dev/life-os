@@ -1,5 +1,6 @@
 // Calendar tab: 7-day agenda plus a quick-add form pinned above the tab bar. Writes are optimistic.
 import { h } from './dom.js';
+import { loadingNodes } from './loading.js';
 import { agenda } from '../lib/agenda.js';
 import { validateEvent, splitWindow } from '../lib/event-form.js';
 import { formatDayLabel, addDays, isNewDay, localDateKey } from '../lib/dates.js';
@@ -168,7 +169,7 @@ function form(app) {
 
 export function renderCalendar(root, app) {
   if (!app.snapshot) {
-    root.replaceChildren(h('h1', {}, 'Calendar'), h('p', { class: 'muted' }, 'Loading…'));
+    root.replaceChildren(h('h1', {}, 'Calendar'), ...loadingNodes(app));
     return;
   }
   const active = root.contains(document.activeElement) ? document.activeElement.dataset?.draft : null;
