@@ -396,7 +396,7 @@ function accountBody(app) {
 const RUNBOOK = [
   "From any other device, open this app's address and log in with an email code.",
   'Open More → Account → Sign out everywhere. Every session is revoked.',
-  'Anything still open on the lost phone stops working within 15 minutes.',
+  'Anything still open on the lost phone stops working within an hour.',
 ];
 const runbookBody = () => h('ol', { class: 'mlist' }, RUNBOOK.map((t) => h('li', {}, t)));
 
