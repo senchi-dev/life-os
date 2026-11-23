@@ -64,3 +64,26 @@ test('002_current_book.sql adds the nullable marker and stays safe', () => {
   assert.ok(!m2.includes('security definer'));
   assert.ok(!/not null/.test(m2));
 });
+
+// ---- R6: 003 tightens grants ----
+const m3 = read('../../supabase/migrations/003_tighten_grants.sql');
+for (const t of V1_TABLES) {
+  test(`003 revokes all from authenticated on ${t} then regrants the four verbs`, () => {
+    const rev = m3.indexOf(`revoke all on public.${t} from authenticated;`);
+    const gr = m3.indexOf(`grant select, insert, update, delete on public.${t} to authenticated;`);
+    assert.ok(rev >= 0, 'revoke all');
+    assert.ok(gr > rev, 'regrant after revoke');
+  });
+}
+
+test('003 is safe: no anon grant, aal2 or security definer', () => {
+  assert.ok(!/grant[^;]*\bto\b[^;]*\banon\b/.test(m3));
+  assert.ok(!m3.includes('aal2'));
+  assert.ok(!m3.includes('security definer'));
+});
+
+test('rls.sql asserts table grants and says it needs 001, 002 and 003', () => {
+  assert.ok(rls.includes('has_table_privilege') || rls.includes('role_table_grants'));
+  assert.match(rls, /after 001[^\n]*002[^\n]*003/);
+  assert.match(rls, /fail: [^']*grant/);
+});

@@ -1,4 +1,5 @@
--- Life OS RLS proof. Run in the Supabase SQL editor (as postgres) AFTER 001_v1_schema.sql.
+-- Life OS RLS proof. Run in the Supabase SQL editor (as postgres) AFTER 001, 002 and 003 (all three migrations:
+-- the grant assertion below only passes once 003_tighten_grants.sql has been applied).
 -- Everything is rolled back. Success = a single row: RLS OK. Any failure raises 'FAIL: ...'.
 begin;
 
@@ -110,6 +111,24 @@ begin
     exception
       when insufficient_privilege then null; -- 42501 expected
     end;
+  end loop;
+end $$;
+
+-- 6. Grants: anon has nothing on any v1 table; authenticated has exactly SELECT, INSERT, UPDATE, DELETE.
+-- has_table_privilege works whatever role runs this, so reset first (section 5 left us as anon).
+reset role;
+do $$
+declare t text; p text;
+begin
+  foreach t in array array['settings','habits','habit_logs','rituals','ritual_logs','events','sleep','water','daily','books','reviews'] loop
+    foreach p in array array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER'] loop
+      if has_table_privilege('anon', format('public.%I', t), p) then
+        raise exception 'FAIL: grant: anon has % on % (apply 003_tighten_grants.sql)', p, t;
+      end if;
+      if has_table_privilege('authenticated', format('public.%I', t), p) <> (p in ('SELECT','INSERT','UPDATE','DELETE')) then
+        raise exception 'FAIL: grant: authenticated has the wrong % privilege on % (apply 003_tighten_grants.sql)', p, t;
+      end if;
+    end loop;
   end loop;
 end $$;
 
