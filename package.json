@@ -1,0 +1,1 @@
+{"name":"life-os","private":true,"type":"module","scripts":{"test":"TZ=Europe/Paris node --test 'tests/unit/*.test.mjs' && TZ=Pacific/Auckland node --test 'tests/unit/*.test.mjs'","test:int":"node --test 'tests/integration/*.test.mjs'"}}
