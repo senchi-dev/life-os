@@ -216,3 +216,16 @@ test('gym writes only go through enqueueGym; the import never writes habit_logs'
     assert.equal(read(f).includes('habit_logs'), false, `${f} mentions habit_logs`);
   }
 });
+
+test('boot guard loads first and app.js marks start-up finished after data or sign-in', () => {
+  const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+  const guard = html.indexOf('js/boot-guard.js');
+  assert.ok(guard > 0 && guard < html.indexOf('vendor/supabase.js') && guard < html.indexOf('js/app.js'), 'boot-guard before other scripts');
+  assert.match(src, /markBooted\(\); \/\/ data shown/);
+  assert.match(src, /markBooted\(\);\n\s+renderAuth\(root/);
+  const g = readFileSync(new URL('../../js/boot-guard.js', import.meta.url), 'utf8');
+  assert.match(g, /dataset\.booted === '1'/);
+  assert.match(g, /caches\.delete/);
+  assert.match(g, /unregister\(\)/);
+  assert.doesNotMatch(g, /indexedDB|localStorage\.clear|sessionStorage\.clear/, 'Repair never touches data');
+});

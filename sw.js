@@ -1,9 +1,10 @@
 // Service worker: cache-first shell, network-only for Supabase. Bump CACHE on every shell change.
-const CACHE = 'lifeos-v1-81';
-// shell-hash: 9e3879fa16d298b69ad5887a00f337665623ff68c582d02b144fd516b78b7584
+const CACHE = 'lifeos-v1-82';
+// shell-hash: 18e40c263a9b7f13572166e4ef21b7400c4df3e6e32e028ac4a510a3cba50983
 const SHELL = [
   './',
   'index.html',
+  'js/boot-guard.js',
   'manifest.webmanifest',
   'css/app.css',
   'css/gym.css',
@@ -85,8 +86,24 @@ const SHELL = [
   'vendor/supabase.js',
 ];
 
+// Every shell file is fetched with ?v=<CACHE> so no CDN edge can answer with a copy from the previous deploy
+// (a mixed set of old and new modules fails to load and leaves the app on its loading screen). Any failed fetch
+// fails the install, so the previous, complete version stays in charge.
+const fresh = (u) => {
+  const url = new URL(u, self.location.href);
+  url.searchParams.set('v', CACHE);
+  return fetch(new Request(url, { cache: 'reload' })).then((res) => {
+    if (!res.ok) throw new Error(`shell fetch ${u}: ${res.status}`);
+    return res;
+  });
+};
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => Promise.all(SHELL.map((u) => fresh(u).then((res) => c.put(new Request(u), res)))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (e) => {

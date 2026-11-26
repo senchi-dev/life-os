@@ -79,3 +79,13 @@ test('More has an Appearance section (layout + colours); login has OTP input sty
   const auth = read('js/ui/auth-view.js');
   assert.ok(auth.includes('one-time-code') && auth.includes('auth-code') && auth.includes('Life OS'));
 });
+
+test('service worker install fetches every shell file cache-busted and fails on a bad response', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const sw = await readFile(new URL('../../sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /searchParams\.set\('v', CACHE\)/);
+  assert.match(sw, /cache: 'reload'/);
+  assert.match(sw, /if \(!res\.ok\) throw/);
+  assert.match(sw, /c\.put\(new Request\(u\), res\)/);
+  assert.doesNotMatch(sw, /addAll\(/);
+});

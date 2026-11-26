@@ -418,3 +418,9 @@ input.mfile { min-height: 52px; padding: var(--s2) var(--s3); width: 100%; min-w
 .mmap summary.mmap-sum::-webkit-details-marker { display: none; }
 .mmap summary.mmap-sum::after { content: '›'; margin-left: auto; color: var(--muted); transition: transform var(--ease); }
 .mmap[open] summary.mmap-sum::after { transform: rotate(90deg); }
+
+/* Start-up guard (js/boot-guard.js): shown only when the app fails to start within 12 s. */
+.boot-guard { position: fixed; inset: auto var(--s4) calc(var(--tabbar-h) + var(--s4)) var(--s4); z-index: 50; padding: var(--s4); border-radius: var(--r-m); background: var(--surface); border: 1px solid var(--line); color: var(--fg); font-size: var(--fs-m); }
+.boot-guard p { margin: 0 0 var(--s3); }
+.boot-guard-title { font-weight: 500; }
+.boot-guard .primary { width: 100%; min-height: 44px; }

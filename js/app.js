@@ -66,6 +66,12 @@ export function mountView(host, route, root, app, views) {
 
 export { authGate };
 
+// Tells js/boot-guard.js start-up finished (data or Retry on screen, or the sign-in screen), so Repair never shows.
+function markBooted() {
+  if (typeof document !== 'undefined') document.documentElement.dataset.booted = '1';
+  document.getElementById?.('boot-guard')?.remove();
+}
+
 // Global sign-out, then the same local cleanup as any other sign-out. If the global call fails
 // (offline), the local session is still dropped and the error is rethrown so the caller can say so.
 export async function signOutEverywhere(app) {
@@ -247,6 +253,7 @@ async function start(root, setBanner) {
         if (app.snapshot) { setBanner(app.snapshotCached ? 'Offline: showing the data saved on this device.' : 'Could not load data.'); }
         else { app.loadFailed = true; setBanner('Could not load data.'); }
       }
+      markBooted(); // data shown (or the Retry screen): start-up finished
       if (app.mode === 'app') app.rerender();
     },
     rerender() {
@@ -292,6 +299,7 @@ async function start(root, setBanner) {
         await Promise.allSettled([outbox.clear(), app.gym.clearAll(), clearSnapshotCache(kv)]);
         resetCalendar(); // fetched events and the open draft belong to the signed-out user
       }
+      markBooted();
       renderAuth(root, { client, onSignedIn: (session) => enqueue(() => (authGate('SIGNED_IN', session) === 'app' ? app.toApp(session) : undefined)) });
     },
   };
