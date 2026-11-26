@@ -182,7 +182,6 @@ export function renderReview(root, app) {
     water: s.water ?? [], daily: s.daily ?? [], settings: s.settings,
   });
   const sl = m.sleep;
-  const pagesTotal = m.pages.total;
 
   root.replaceChildren(
     h('div', { class: 'review' },
@@ -193,18 +192,13 @@ export function renderReview(root, app) {
       lastChange(app, week),
       h('div', { class: 'rnums' },
         numeral(sl.avgMinutes == null ? dash : formatDuration(sl.avgMinutes), 'Sleep avg'),
-        numeral(`${m.water.daysOnTarget}/${m.water.days}`, 'Water days'),
-        numeral(String(pagesTotal), 'Pages')),
+        numeral(`${m.water.daysOnTarget}/${m.water.days}`, 'Water days')),
       h('section', { class: 'tsec', 'aria-label': 'Habits' }, h('div', { class: 'cap' }, 'Habits'), habitsBlock(m)),
       h('section', { class: 'tsec', 'aria-label': 'Health' },
         h('div', { class: 'cap' }, 'Health'),
         line('Sleep', sl.avgMinutes == null ? dash : formatDuration(sl.avgMinutes), sl.nights ? `${sl.nights} nights` : null),
         line('Bed time', sl.avgBed ?? dash, sl.bedSpreadMin == null ? null : `±${sl.bedSpreadMin} min`),
-        line('Water', `${m.water.daysOnTarget}/${m.water.days}`, 'days on target'),
-        line('Mood', m.mood.avg == null ? dash : `${m.mood.avg} / 5`, m.mood.n ? `${m.mood.n} days` : null)),
-      h('section', { class: 'tsec', 'aria-label': 'Reading' },
-        h('div', { class: 'cap' }, 'Reading'),
-        line('Pages', `${pagesTotal} / ${m.pages.target}`)),
+        line('Water', `${m.water.daysOnTarget}/${m.water.days}`, 'days on target')),
       h('section', { class: 'tsec rprompts', 'aria-label': 'Notes' },
         FIELDS.map(([f, label]) => textField(app, week, f, label))),
       ui.notice ? h('p', { class: 'danger tnotice', role: 'status' }, ui.notice) : null),

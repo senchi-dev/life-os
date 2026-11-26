@@ -1,13 +1,13 @@
-// More tab: targets, habits, rituals, books, encrypted export, account, lost-phone runbook.
+// More tab: targets, habits, rituals, encrypted export, account, lost-phone runbook.
 // Sections open in place, one at a time. Writes are optimistic and never block the UI.
 import { h } from './dom.js';
 import { loadingNodes } from './loading.js';
 import { canActivate, MAX_ACTIVE_HABITS } from '../lib/habits.js';
-import { DEFAULT_WATER_TARGET_L, DEFAULT_WEEKLY_PAGES } from '../lib/health.js';
+import { DEFAULT_WATER_TARGET_L } from '../lib/health.js';
 import { encryptExport, validatePassphrase, exportFileName } from '../lib/crypto-export.js';
 import {
-  validateWaterTarget, validateWeeklyPages, validateHabit, validateRitual, validateBook,
-  moveHabit, nextSort, scheduleLabel, currentBookId, WEEKDAY_NAMES, signOutWarning,
+  validateWaterTarget, validateHabit, validateRitual,
+  moveHabit, nextSort, scheduleLabel, WEEKDAY_NAMES, signOutWarning,
 } from '../lib/more-forms.js';
 import { sheet } from './components.js';
 import { localDateKey } from '../lib/dates.js';
@@ -65,10 +65,8 @@ function targetsBody(app) {
   const submit = (e) => {
     e.preventDefault();
     const w = validateWaterTarget(ui.drafts['tg.water'] ?? String(s?.water_target_l ?? DEFAULT_WATER_TARGET_L));
-    const p = validateWeeklyPages(ui.drafts['tg.pages'] ?? String(s?.weekly_pages ?? DEFAULT_WEEKLY_PAGES));
     if (w.error) return say('targets', `Water: ${w.error}`), app.rerender();
-    if (p.error) return say('targets', `Pages: ${p.error}`), app.rerender();
-    const patch = { water_target_l: w.value, weekly_pages: p.value };
+    const patch = { water_target_l: w.value };
     clearDrafts('tg.');
     commit(app, 'targets', (snap) => { snap.settings = { ...(snap.settings ?? {}), ...patch }; }, () => repo.saveSettings(app.ctx, patch));
     say('targets', 'Saved.', 'info');
@@ -76,7 +74,6 @@ function targetsBody(app) {
   };
   return h('form', { class: 'mform', onSubmit: submit, novalidate: true },
     labelled('Daily water target (L)', control('tg.water', { initial: String(s?.water_target_l ?? DEFAULT_WATER_TARGET_L), inputmode: 'decimal', autocomplete: 'off' })),
-    labelled('Pages per week', control('tg.pages', { initial: String(s?.weekly_pages ?? DEFAULT_WEEKLY_PAGES), inputmode: 'numeric', autocomplete: 'off' })),
     notice('targets'),
     h('button', { type: 'submit', class: 'tap primary' }, 'Save'));
 }
@@ -237,65 +234,6 @@ function ritualsBody(app) {
         h('span', { class: 'ellip' }, r.name),
         h('span', { class: 'muted ellip num' }, `${WEEKDAY_NAMES[r.weekday - 1]} ${r.time ?? ''} · ${r.checklist.length} steps`))))),
     ui.ritualEdit ? ritualForm(app) : notice('rituals'));
-}
-
-// ---- Books ----
-const bookRow = (b) => ({
-  id: b.id, title: b.title, author: b.author ?? null, total_pages: b.total_pages ?? null,
-  started_on: b.started_on ?? null, finished_on: b.finished_on ?? null,
-});
-
-// "Current" is an explicit marker on settings; no book date is ever rewritten to fake it.
-function setCurrent(app, b) {
-  commit(app, 'books', (snap) => { snap.settings = { ...(snap.settings ?? {}), current_book_id: b.id }; },
-    () => repo.saveSettings(app.ctx, { current_book_id: b.id }));
-}
-
-function reopenBook(app, b) {
-  const row = { ...bookRow(b), finished_on: null };
-  commit(app, 'books', () => { b.finished_on = null; }, () => repo.saveBook(app.ctx, row));
-}
-
-function finishBook(app, b) {
-  const row = { ...bookRow(b), finished_on: app.todayKey };
-  const clear = app.snapshot.settings?.current_book_id === b.id;
-  commit(app, 'books', (snap) => {
-    b.finished_on = app.todayKey;
-    if (clear) snap.settings = { ...snap.settings, current_book_id: null };
-  }, () => Promise.all([repo.saveBook(app.ctx, row), clear ? repo.saveSettings(app.ctx, { current_book_id: null }) : null]));
-}
-
-function submitBook(app, e) {
-  e.preventDefault();
-  const r = validateBook({ title: ui.drafts['book.title'], author: ui.drafts['book.author'], pages: ui.drafts['book.pages'] });
-  if (r.error) return say('books', r.error), app.rerender();
-  const row = { id: crypto.randomUUID(), ...r.value, started_on: app.todayKey, finished_on: null };
-  clearDrafts('book.');
-  commit(app, 'books', (snap) => { snap.books.push({ ...row, created_at: new Date().toISOString() }); }, () => repo.saveBook(app.ctx, row));
-}
-
-function booksBody(app) {
-  const books = app.snapshot.books;
-  const cur = currentBookId(books, app.snapshot.settings);
-  const ordered = [...books].sort((a, b) => (a.id === cur ? -1 : b.id === cur ? 1 : (a.finished_on ? 1 : 0) - (b.finished_on ? 1 : 0)));
-  const sub = (b) => [b.author, b.total_pages ? `${b.total_pages} pages` : null, b.id === cur ? 'Current' : b.finished_on ? 'Finished' : null].filter(Boolean).join(' · ');
-  return h('div', {},
-    ordered.length ? null : h('p', { class: 'muted' }, 'No books yet.'),
-    ordered.map((b) => h('div', { class: 'mrow' },
-      h('div', { class: `mname mstatic${b.id === cur ? ' is-cur' : ''}` }, h('span', { class: 'ellip' }, b.title), h('span', { class: 'muted ellip' }, sub(b))),
-      b.finished_on
-        ? h('button', { type: 'button', class: 'tap', onClick: () => reopenBook(app, b) }, 'Reopen')
-        : [
-          b.id === cur ? null : h('button', { type: 'button', class: 'tap', onClick: () => setCurrent(app, b) }, 'Set current'),
-          h('button', { type: 'button', class: 'tap', onClick: () => finishBook(app, b) }, 'Finish')])),
-    h('form', { class: 'mform mform-in', onSubmit: (e) => submitBook(app, e), novalidate: true },
-      h('span', { class: 'cap' }, 'Add a book'),
-      labelled('Title', control('book.title', { maxlength: '120', autocomplete: 'off', autocapitalize: 'words' })),
-      h('div', { class: 'mpair' },
-        labelled('Author', control('book.author', { autocomplete: 'off', autocapitalize: 'words' })),
-        labelled('Pages', control('book.pages', { inputmode: 'numeric', autocomplete: 'off' }))),
-      notice('books'),
-      h('button', { type: 'submit', class: 'tap primary' }, 'Add book')));
 }
 
 // ---- Export ----
@@ -477,10 +415,9 @@ function sections(app) {
   const s = app.snapshot;
   const active = s.habits.filter((x) => x.active).length;
   return [
-    ['targets', 'Targets', `${s.settings?.water_target_l ?? DEFAULT_WATER_TARGET_L} L · ${s.settings?.weekly_pages ?? DEFAULT_WEEKLY_PAGES} pages`, targetsBody],
+    ['targets', 'Targets', `${s.settings?.water_target_l ?? DEFAULT_WATER_TARGET_L} L`, targetsBody],
     ['habits', 'Habits', `${active} active`, habitsBody],
     ['rituals', 'Rituals', `${s.rituals.length}`, ritualsBody],
-    ['books', 'Books', s.books.length ? `${s.books.length}` : '', booksBody],
     ['strive', 'Import from Strive', '', striveBody],
     ['export', 'Export', '', exportBody],
     ['account', 'Account', '', accountBody],

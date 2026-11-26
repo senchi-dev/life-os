@@ -7,7 +7,7 @@ import { buildTodayModel } from './today-model.js';
 import { ring, tile, sheet } from './components.js';
 import { nextStatus } from '../lib/habits.js';
 import { ritualState, toggleItem } from '../lib/rituals.js';
-import { LITER_CHIPS, PAGE_CHIPS, buildSleep, formatDuration, parseLiters } from '../lib/health.js';
+import { LITER_CHIPS, buildSleep, formatDuration, parseLiters } from '../lib/health.js';
 import { nowHHMM, isNewDay, localDateKey } from '../lib/dates.js';
 import { formatClock } from '../lib/workout.js';
 import { guardedStart } from './start-guard.js';
@@ -31,7 +31,7 @@ const uid = () => crypto.randomUUID();
 const fmtL = (x) => String(Math.round(x * 100) / 100);
 
 export const weekLineText = (wk) =>
-  `This week: pages ${wk.pages}/${wk.pagesTarget} · habits ${wk.habitsPct === null ? '–' : `${wk.habitsPct}%`}`;
+  `This week: habits ${wk.habitsPct === null ? '–' : `${wk.habitsPct}%`}`;
 
 // Elapsed workout time as HH:MM:SS; a bad start time or a clock that ran backwards reads 00:00:00.
 export function clockText(startedAtIso, nowMs) {
@@ -336,41 +336,6 @@ function sleepPanel(app, act, m) {
       sleep.logged ? null : chip('Confirm', () => act.confirmSleep(sleep.bed, sleep.wake), { class: 'tap chip chip-strong' })));
 }
 
-function pagesSection(app, act, m) {
-  const book = m.pages.book;
-  const bookId = book?.id ?? null;
-  const total = ui.pagesEdit
-    ? h('span', { class: 'num' }, `${m.pages.today} today`)
-    : h('button', { type: 'button', class: 'tap link num', 'aria-label': 'Correct today’s pages', onClick: () => { ui.pagesEdit = true; ui.notice = ''; ui.draft.pages = null; ui.focusNext = 'pages'; app.rerender(); } }, `${m.pages.today} today`);
-  const nodes = [row('Pages', total,
-    ...PAGE_CHIPS.map((n) => chip(`+${n}`, () => act.addPages(n, bookId))),
-    book ? h('span', { class: 'muted ellip tbook' }, book.title) : null)];
-  if (ui.pagesEdit) {
-    const err = ui.notice.startsWith('Pages');
-    nodes.push(h('div', { class: 'tinline' }, inlineInput({
-      draftKey: 'pages', inputmode: 'numeric', placeholder: 'Pages today', label: 'Pages today', value: String(m.pages.today), submitText: 'Set', error: err,
-      onSubmit: (v) => {
-        const t = String(v).trim();
-        const n = /^\d{1,4}$/.test(t) ? Number(t) : null;
-        if (n === null) { act.notify('Pages: enter a whole number.', 'today'); app.rerender(); return; }
-        ui.pagesEdit = false;
-        ui.draft.pages = null;
-        act.setPages(n, bookId);
-      },
-    })));
-    if (err) nodes.push(h('p', { class: 'danger tnotice', role: 'status' }, ui.notice));
-  }
-  return nodes;
-}
-
-function moodSection(act, m) {
-  const btns = [1, 2, 3, 4, 5].map((n) => h('button', {
-    type: 'button', class: `tap chip mood${m.mood === n ? ' is-done' : ''}`, 'aria-pressed': m.mood === n ? 'true' : 'false', 'aria-label': `Mood ${n}`,
-    onClick: () => act.toggleMood(n),
-  }, String(n)));
-  return [row('Mood', h('span', { class: 'muted num' }, m.mood ? `${m.mood} / 5` : '–'), btns)];
-}
-
 // A status line. Errors are danger text; "Saved." is muted. Inline field errors (Water:/Pages:) render in their field.
 function noticeLine(where) {
   if (!ui.notice || ui.noticeWhere !== where || /^(Water|Pages):/.test(ui.notice)) return null;
@@ -462,7 +427,6 @@ export function renderToday(root, app) {
   const todayItems = [
     m.nowNext.length ? h('div', { class: 'tgroup', 'aria-label': 'Now and next', role: 'group' }, nowNextRows(m, now)) : null,
     m.rituals.length ? h('div', { class: 'tgroup', 'aria-label': 'Today’s ritual', role: 'group' }, m.rituals.map((e) => ritualBlock(app, act, e))) : null,
-    h('div', { class: 'tgroup', role: 'group', 'aria-label': 'Pages and mood' }, pagesSection(app, act, m), moodSection(act, m)),
     noticeLine('today'),
   ];
 

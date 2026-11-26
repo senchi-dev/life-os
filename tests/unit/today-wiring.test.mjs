@@ -44,7 +44,7 @@ test('addWater uses the day that is current at action time, not at creation', as
   assert.equal(localDateKey(new Date(app.snapshot.water[0].at)), '2026-11-30');
   // the week line is computed for the new week, not the one captured earlier
   assert.equal(weekStart(app.todayKey), '2026-11-30');
-  assert.match(act.weekLine(now), /pages 12\//);
+  assert.match(act.weekLine(now), /^This week: habits /);
   await tick();
 });
 
@@ -180,8 +180,8 @@ test('startWorkout ignores a second tap while the first is running', async () =>
 });
 
 test('weekLineText and clockText', () => {
-  assert.equal(weekLineText({ pages: 12, pagesTarget: 200, habitsPct: null }), 'This week: pages 12/200 \u00b7 habits \u2013');
-  assert.equal(weekLineText({ pages: 12, pagesTarget: 200, habitsPct: 75 }), 'This week: pages 12/200 \u00b7 habits 75%');
+  assert.equal(weekLineText({ pages: 12, pagesTarget: 200, habitsPct: null }), 'This week: habits \u2013');
+  assert.equal(weekLineText({ pages: 12, pagesTarget: 200, habitsPct: 75 }), 'This week: habits 75%');
   const start = '2026-11-23T09:00:00.000Z';
   assert.equal(clockText(start, Date.parse(start) + 42 * 60000 + 18000), '00:42:18');
   assert.equal(clockText(start, Date.parse(start) - 5000), '00:00:00', 'clock never runs backwards');

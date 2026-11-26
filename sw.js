@@ -1,6 +1,6 @@
 // Service worker: cache-first shell, network-only for Supabase. Bump CACHE on every shell change.
-const CACHE = 'lifeos-v1-62';
-// shell-hash: b4cf4665f986a40056afbe4b0aaf77dfa7632d9628c826f2888d59b041e83098
+const CACHE = 'lifeos-v1-63';
+// shell-hash: d13199d1ee2d89717bec830c0666f82b08a45eb69ebd38a34d53e43f4bb8d103
 const SHELL = [
   './',
   'index.html',
