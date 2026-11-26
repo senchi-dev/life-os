@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMemoryBackend } from '../../js/data/backend-memory.js';
 import { createOutbox, createMemoryStorage } from '../../js/data/outbox.js';
-import { V1_TABLES } from '../../js/data/tables.js';
+import { ALL_TABLES } from '../../js/data/tables.js';
 import { demoSeed } from '../../js/data/demo-seed.js';
 import { missRun, habitFlag } from '../../js/lib/habits.js';
 import * as repo from '../../js/data/repo.js';
@@ -37,7 +37,7 @@ test('setHabitStatus done then null removes the log', async () => {
 
 test('addWater/removeWater with client ids', async () => {
   const { ctx, backend, settle } = await mk();
-  const a = repo.addWater(ctx, 0.5);
+  const { row: a } = repo.addWater(ctx, 0.5);
   repo.addWater(ctx, 0.25);
   assert.ok(a.id && a.liters === 0.5 && typeof a.at === 'string');
   await settle();
@@ -69,11 +69,11 @@ test('saveSleep upserts per night, ISO strings, no minutes', async () => {
 
 test('saveRitualLog sets done_at only when done', async () => {
   const { ctx, backend, settle } = await mk();
-  await repo.saveRitualLog(ctx, 'r1', '2026-11-16', [true, false], false);
-  await repo.saveRitualLog(ctx, 'r1', '2026-11-16', [true, true], true); await settle();
+  await repo.saveRitualLog(ctx, 'r1', '2026-11-16', { A: true, B: false }, false);
+  await repo.saveRitualLog(ctx, 'r1', '2026-11-16', { A: true, B: true }, true); await settle();
   const l = rows(backend, 'ritual_logs');
   assert.equal(l.length, 1);
-  assert.deepEqual(l[0].checklist_state, [true, true]);
+  assert.deepEqual(l[0].checklist_state, { A: true, B: true });
   assert.ok(l[0].done_at);
 });
 
@@ -117,7 +117,7 @@ test('loadSnapshot excludes old water, orders sleep and logs ascending', async (
   assert.deepEqual(snap.habitLogs.map((s) => s.id), ['l1', 'l2']);
   assert.equal(snap.settings.id, 'st');
   assert.deepEqual(Object.keys(snap).sort(),
-    ['books', 'daily', 'events', 'habitLogs', 'habits', 'reviews', 'ritualLogs', 'rituals', 'settings', 'sleep', 'water']);
+    ['activeWorkout', 'books', 'daily', 'events', 'exercises', 'habitLogs', 'habits', 'reviews', 'ritualLogs', 'rituals', 'routineItems', 'routines', 'scheduleSlots', 'settings', 'sleep', 'water', 'workouts']);
   const empty = await repo.loadSnapshot((await mk()).ctx, today);
   assert.equal(empty.settings, null);
 });
@@ -125,8 +125,8 @@ test('loadSnapshot excludes old water, orders sleep and logs ascending', async (
 test('exportAll returns every table', async () => {
   const { ctx } = await mk({ books: [{ id: 'b', title: 'T' }] });
   const out = await repo.exportAll(ctx);
-  assert.deepEqual(Object.keys(out.tables), V1_TABLES);
-  assert.equal(V1_TABLES.length, 11);
+  assert.deepEqual(Object.keys(out.tables), ALL_TABLES);
+  assert.equal(ALL_TABLES.length, 18);
   assert.equal(out.tables.books.length, 1);
   assert.ok(!Number.isNaN(Date.parse(out.exported_at)));
 });
@@ -134,7 +134,7 @@ test('exportAll returns every table', async () => {
 test('demoSeed shape and double-missed Read habit', async () => {
   const today = '2026-11-23';
   const seed = demoSeed(today);
-  assert.deepEqual(Object.keys(seed).sort(), [...V1_TABLES].sort().filter((t) => t in seed).sort());
+  assert.deepEqual(Object.keys(seed).sort(), [...ALL_TABLES].sort().filter((t) => t in seed).sort());
   assert.equal(seed.habits.length, 4);
   assert.equal(seed.habits.find((h) => h.name === 'Gym').target_n, 4);
   const red = seed.habits.filter((h) => habitFlag(missRun(h, seed.habit_logs, today)) === 'red');
@@ -217,4 +217,20 @@ test('exportAll pages with range and stops on a short page (exact multiple costs
   const out = await repo.exportAll({ backend });
   assert.equal(out.tables.water.length, 2000);
   assert.deepEqual(calls, [[0, 999], [1000, 1999], [2000, 2999]]);
+});
+
+test('exportAll returns all 2,500 sets across three pages and keys for all 18 tables', async () => {
+  const sets = Array.from({ length: 2500 }, (_, i) => ({ id: `s${String(i).padStart(5, '0')}`, set_no: 1, reps: 5, weight_kg: 60 }));
+  const { ctx } = await mk({ sets });
+  const out = await repo.exportAll(ctx);
+  assert.equal(out.tables.sets.length, 2500);
+  assert.equal(new Set(out.tables.sets.map((r) => r.id)).size, 2500);
+  assert.deepEqual(Object.keys(out.tables), ALL_TABLES);
+});
+
+test('saveRitualLog only accepts the {itemText: bool} object form', async () => {
+  const { ctx } = await mk();
+  for (const bad of [[true, false], null, undefined, 'x', { A: 'yes' }]) {
+    await assert.rejects(() => repo.saveRitualLog(ctx, 'r1', '2026-11-16', bad, false), TypeError, JSON.stringify(bad));
+  }
 });

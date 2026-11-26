@@ -52,3 +52,27 @@ test('select maps range to supabase .range(from, to) last', async () => {
   assert.deepEqual(c.calls[0].steps.map((s) => s[0]), ['select', 'match', 'order', 'range']);
   assert.deepEqual(c.calls[0].steps.at(-1), ['range', 1000, 1999]);
 });
+
+test('select maps in and is filters', async () => {
+  const c = fakeClient({ data: [{ id: 1 }], error: null });
+  const b = createSupabaseBackend(c);
+  await b.select('sets', { in: { workout_exercise_id: ['a', 'b'] } });
+  assert.deepEqual(c.calls[0].steps.find((s) => s[0] === 'in'), ['in', 'workout_exercise_id', ['a', 'b']]);
+  await b.select('workouts', { is: { ended_at: null } });
+  assert.deepEqual(c.calls[1].steps.find((s) => s[0] === 'is'), ['is', 'ended_at', null]);
+});
+
+test('select with an empty in list makes no request', async () => {
+  const c = fakeClient({ data: [{ id: 1 }], error: null });
+  assert.deepEqual(await createSupabaseBackend(c).select('sets', { in: { workout_exercise_id: [] } }), []);
+  assert.equal(c.calls.length, 0);
+});
+
+test('select chunks an in list at 50 ids per request and merges the results', async () => {
+  const ids = Array.from({ length: 120 }, (_, i) => `id${String(i).padStart(3, '0')}`);
+  const c = fakeClient((q) => ({ data: q.steps.find((s) => s[0] === 'in')[2].map((id) => ({ id })), error: null }));
+  const rows = await createSupabaseBackend(c).select('sets', { in: { id: ids }, order: ['id', true] });
+  assert.equal(c.calls.length, 3);
+  assert.deepEqual(c.calls.map((q) => q.steps.find((s) => s[0] === 'in')[2].length), [50, 50, 20]);
+  assert.deepEqual(rows.map((r) => r.id), ids);
+});

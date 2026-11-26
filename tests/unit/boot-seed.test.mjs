@@ -58,7 +58,7 @@ test('B1: a failing reload after seeding falls back to the first snapshot', asyn
 test('B2: a queued op is applied before the first load and present in the snapshot', async () => {
   const storage = createMemoryStorage();
   const first = await mk({}, storage);
-  const row = addWater(first.ctx, 0.5, new Date()); // queued; backend of "first" is thrown away (app closed)
+  const { row } = addWater(first.ctx, 0.5, new Date()); // queued; backend of "first" is thrown away (app closed)
   await new Promise((r) => setTimeout(r, 5));
   // cold start: new outbox over the persisted queue, a different (server) backend
   const server = createMemoryBackend({ settings: [{ id: 's', user_id: 'demo-user' }] });

@@ -27,7 +27,7 @@ export function renderAuth(root, { client, onSignedIn }) {
     const btn = h('button', { type: 'submit', class: 'tap primary' }, 'Send code');
     const form = h('form', { class: 'auth-form', novalidate: true },
       h('div', { class: 'auth-body' },
-        h('h1', {}, 'Sign in'),
+        h('h1', { class: 'wordmark' }, 'Life OS'),
         h('p', { class: 'muted' }, 'Enter your email. We send a 6-digit code.'),
         f.wrap),
       btn);
@@ -55,14 +55,14 @@ export function renderAuth(root, { client, onSignedIn }) {
   function stepCode() {
     const f = field({
       id: 'auth-code', label: 'Code',
-      props: { type: 'text', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, pattern: '[0-9]*', enterkeyhint: 'go', autocapitalize: 'off' },
+      props: { class: 'field otp', type: 'text', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, pattern: '[0-9]*', enterkeyhint: 'go', autocapitalize: 'off' },
     });
     const btn = h('button', { type: 'submit', class: 'tap primary' }, 'Sign in');
     const again = h('button', { type: 'button', class: 'tap link' }, 'Use another email');
     const form = h('form', { class: 'auth-form', novalidate: true },
       h('div', { class: 'auth-body' },
-        h('h1', {}, 'Enter code'),
-        h('p', { class: 'muted' }, `Sent to ${email}.`),
+        h('h1', { class: 'wordmark' }, 'Life OS'),
+        h('p', { class: 'muted' }, `Enter the 6-digit code sent to ${email}.`),
         f.wrap,
         again),
       btn);

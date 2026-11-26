@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { occurrence, ritualsForToday, toggleItem, DEFAULT_RITUALS } from '../../js/lib/rituals.js';
+import { occurrence, ritualsForToday, ritualState, toggleItem, DEFAULT_RITUALS } from '../../js/lib/rituals.js';
 
 const R = DEFAULT_RITUALS.map((r, i) => ({ id: 'r' + i, ...r }));
 const cleaning = R.find((r) => r.name === 'Cleaning reset');
@@ -39,10 +39,42 @@ test('done ritual on its own day is still returned', () => {
   assert.equal(out.find((x) => x.ritual.id === 'r0').done, true);
 });
 
-test('toggleItem', () => {
-  assert.equal(toggleItem([true, true, true, false], 3, 4).done, true);
-  assert.deepEqual(toggleItem([true, false], 0, 2), { state: [false, false], done: false });
-  assert.deepEqual(toggleItem([], 1, 3).state, [false, true, false]);
+const ITEMS = ['A', 'B'];
+test('ritualState: legacy array is read positionally', () => {
+  assert.deepEqual(ritualState({ checklist: ITEMS }, { checklist_state: [true, false] }), [true, false]);
+  assert.deepEqual(ritualState({ checklist: ITEMS }, { checklist_state: [true] }), [true, false]);
+});
+
+test('ritualState: object form follows the item text, not the position', () => {
+  assert.deepEqual(ritualState({ checklist: ['B', 'A'] }, { checklist_state: { A: true } }), [false, true]);
+  assert.deepEqual(ritualState({ checklist: ['A2', 'B'] }, { checklist_state: { A: true } }), [false, false]);
+});
+
+test('ritualState: missing, null or malformed state is all unticked', () => {
+  for (const log of [undefined, null, {}, { checklist_state: null }, { checklist_state: 'x' }, { checklist_state: 5 }]) {
+    assert.deepEqual(ritualState({ checklist: ITEMS }, log), [false, false], JSON.stringify(log));
+  }
+  assert.deepEqual(ritualState({ checklist: [] }, { checklist_state: [true] }), []);
+});
+
+test('ritualsForToday uses ritualState for the object form', () => {
+  const log = { ritual_id: cleaning.id, week_start: '2026-11-16', done_at: null, checklist_state: { [cleaning.checklist[2]]: true } };
+  const out = ritualsForToday([cleaning], [log], '2026-11-23');
+  assert.deepEqual(out[0].state, cleaning.checklist.map((_, i) => i === 2));
+});
+
+test('toggleItem returns the object form and done when all items are ticked', () => {
+  const r = toggleItem([true, false], 1, ITEMS);
+  assert.deepEqual(r, { state: { A: true, B: true }, done: true });
+  assert.deepEqual(toggleItem([true, true], 0, ITEMS), { state: { A: false, B: true }, done: false });
+  assert.deepEqual(toggleItem([], 1, ['A', 'B', 'C']).state, { A: false, B: true, C: false });
+});
+
+test('toggleItem guards an out-of-range index and an empty list', () => {
+  assert.deepEqual(toggleItem([true, false], 5, ITEMS), { state: { A: true, B: false }, done: false });
+  assert.deepEqual(toggleItem([true, false], -1, ITEMS), { state: { A: true, B: false }, done: false });
+  assert.deepEqual(toggleItem([true, false], 1.5, ITEMS), { state: { A: true, B: false }, done: false });
+  assert.deepEqual(toggleItem([], 0, []), { state: {}, done: false });
 });
 
 test('default rituals verbatim', () => {

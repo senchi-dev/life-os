@@ -26,7 +26,7 @@ test('index.html: every script has src, no inline style', () => {
   assert.doesNotMatch(html, /<style\b/i);
   assert.doesNotMatch(html, /\sstyle\s*=/i);
   assert.match(html, /viewport-fit=cover/);
-  for (const t of ['#/today', '#/calendar', '#/review', '#/more']) assert.ok(html.includes(`href="${t}"`), t);
+  for (const t of ['#/today', '#/gym', '#/calendar', '#/review', '#/more']) assert.ok(html.includes(`href="${t}"`), t);
 });
 
 test('manifest is installable and scoped relatively', () => {
@@ -59,4 +59,22 @@ test('no innerHTML or eval( under js/', () => {
     assert.ok(!src.includes('innerHTML'), `${relative(root, join(root, f))} innerHTML`);
     assert.ok(!src.includes('eval('), `${f} eval(`);
   }
+});
+
+test('index.html: five tabs in order, #pending status and #minibar link, gym stylesheet, both theme-color metas', () => {
+  const tabs = [...html.matchAll(/<nav class="tabbar"[\s\S]*?<\/nav>/g)][0][0];
+  assert.deepEqual([...tabs.matchAll(/href="([^"]+)"/g)].map((m) => m[1]), ['#/today', '#/gym', '#/calendar', '#/review', '#/more']);
+  assert.match(html, /<div id="pending" class="pending" role="status" hidden><\/div>/);
+  assert.match(html, /<a id="minibar" class="minibar tap" href="#\/workout" hidden><\/a>/);
+  assert.match(html, /<link rel="stylesheet" href="css\/gym\.css">/);
+  const metas = [...html.matchAll(/<meta name="theme-color"[^>]*content="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(metas, ['#0b0c0e', '#0b0c0e']);
+  assert.ok(existsSync(join(root, 'css/gym.css')));
+});
+
+test('More has a Theme row; login has OTP input styling hooks', () => {
+  const more = read('js/ui/more-view.js');
+  assert.ok(more.includes("'Theme'") && more.includes('writeTheme') && more.includes('applyTheme'));
+  const auth = read('js/ui/auth-view.js');
+  assert.ok(auth.includes('one-time-code') && auth.includes('auth-code') && auth.includes('Life OS'));
 });

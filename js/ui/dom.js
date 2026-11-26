@@ -24,10 +24,11 @@ export function h(tag, props = {}, ...children) {
 
 // Tap vs. hold on one element. Cancels on movement > 10px; suppresses the iOS context menu.
 export function longPress(el, { onTap, onHold, ms = 450 } = {}) {
-  let timer = null, sx = 0, sy = 0, held = false, active = false;
+  let timer = null, sx = 0, sy = 0, held = false, active = false, dead = false;
   const clear = () => { clearTimeout(timer); timer = null; };
   el.addEventListener('contextmenu', (e) => e.preventDefault());
   el.addEventListener('pointerdown', (e) => {
+    if (dead) return;
     active = true; held = false; sx = e.clientX; sy = e.clientY;
     clear();
     timer = setTimeout(() => { held = true; timer = null; onHold?.(e); }, ms);
@@ -42,4 +43,6 @@ export function longPress(el, { onTap, onHold, ms = 450 } = {}) {
   });
   el.addEventListener('pointercancel', () => { active = false; clear(); });
   el.addEventListener('pointerleave', () => { active = false; clear(); });
+  // Stops a pending hold and ignores later presses (the element is going away).
+  return { cancel: () => { dead = true; active = false; clear(); } };
 }

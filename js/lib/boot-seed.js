@@ -3,6 +3,8 @@
 //  - seed defaults when, and only when, the settings row does not exist yet
 //  - what online / resume should do (retry a failed first load, re-check a deferred session)
 
+import { needsGymSeed } from '../data/gym-repo.js';
+
 export const FLUSH_CAP_MS = 3000;
 
 // Condition on the NULL settings row, never on empty rituals: deleting a ritual must not re-seed it.
@@ -29,17 +31,28 @@ export async function flushCapped(outbox, { capMs = FLUSH_CAP_MS, setTimer = set
 
 // First load of a session: flush (capped), read, then seed defaults once if the settings row is missing.
 // Auth errors during the flush go through the outbox's own onAuthError recovery path.
-export async function loadFirst({ ctx, load, ensureDefaults, capMs, setTimer, clearTimer, onLate }) {
+export async function loadFirst({ ctx, load, ensureDefaults, ensureGymDefaults, capMs, setTimer, clearTimer, onLate }) {
   await flushCapped(ctx.outbox, { capMs, setTimer, clearTimer, onLate });
-  const snapshot = await load();
-  if (!needsSeed(snapshot)) return snapshot;
-  try {
-    await ensureDefaults(ctx);
-    await flushCapped(ctx.outbox, { capMs, setTimer, clearTimer, onLate });
-    return await load();
-  } catch {
-    return snapshot; // seeding is retried at the next session; the app still works without it
+  let snapshot = await load();
+  if (needsSeed(snapshot)) {
+    try {
+      await ensureDefaults(ctx);
+      await flushCapped(ctx.outbox, { capMs, setTimer, clearTimer, onLate });
+      snapshot = await load();
+    } catch {
+      return snapshot; // seeding is retried at the next session; the app still works without it
+    }
   }
+  if (ensureGymDefaults && needsGymSeed(snapshot)) {
+    try {
+      await ensureGymDefaults(ctx, snapshot);
+      await flushCapped(ctx.outbox, { capMs, setTimer, clearTimer, onLate });
+      return await load();
+    } catch {
+      return snapshot; // retried next session (gym_seeded_at is still null)
+    }
+  }
+  return snapshot;
 }
 
 export function createResume({ getMode, hasSnapshot, isSessionDeferred, flush, refresh, recheckSession }) {

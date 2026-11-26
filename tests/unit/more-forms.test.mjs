@@ -93,3 +93,27 @@ test('scheduleLabel and currentBookId', async () => {
   assert.equal(currentBookId([{ id: 'a', started_on: '2026-01-01' }, { id: 'b', started_on: '2026-02-01' }], { current_book_id: 'a' }), 'a');
   assert.equal(currentBookId([{ id: 'a', started_on: '2026-02-01', created_at: '1' }, { id: 'b', started_on: '2026-02-01', created_at: '2' }]), 'b');
 });
+
+import { signOutWarning } from '../../js/lib/more-forms.js';
+import { readFileSync } from 'node:fs';
+
+test('M2 signOutWarning: null when nothing would be lost; names the open workout and/or the unsynced count', () => {
+  assert.equal(signOutWarning({ hasDraft: false, pending: 0 }), null);
+  assert.equal(signOutWarning({}), null);
+  assert.equal(signOutWarning({ hasDraft: false, pending: -1 }), null);
+  assert.equal(signOutWarning({ hasDraft: true, pending: 0 }), 'A workout is open. Sign out anyway? It will be lost.');
+  assert.equal(signOutWarning({ hasDraft: false, pending: 1 }), '1 change is not synced yet. Sign out anyway? It will be lost.');
+  assert.equal(signOutWarning({ hasDraft: false, pending: 3 }), '3 changes are not synced yet. Sign out anyway? They will be lost.');
+  assert.equal(signOutWarning({ hasDraft: true, pending: 2 }), 'A workout is open and 2 changes are not synced yet. Sign out anyway? They will be lost.');
+});
+
+test('M2 wiring: both sign-out buttons go through the warning sheet before signing out', () => {
+  const src = readFileSync(new URL('../../js/ui/more-view.js', import.meta.url), 'utf8');
+  const acc = src.slice(src.indexOf('function accountBody'), src.indexOf('// ---- Runbook'));
+  assert.match(acc, /signOutWarning\(\{ hasDraft: !!app\.gym\?\.draft\(\), pending: app\.ctx\?\.outbox\?\.pending\(\) \?\? 0 \}\)/);
+  assert.match(acc, /guarded\(\(\) => app\.signOut\(\)\)/);
+  assert.match(acc, /guarded\(\(\) => app\.signOutEverywhere\(\)\)/);
+  assert.doesNotMatch(acc, /run\(\(\) => app\.signOut(Everywhere)?\(\)\)/, 'no direct sign-out');
+  assert.match(acc, /class: 'danger'/);
+  assert.match(acc, /Sign out anyway/);
+});

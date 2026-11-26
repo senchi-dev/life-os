@@ -107,6 +107,9 @@ const line = (label, value, sub) =>
     h('span', { class: 'num rval' }, value),
     sub ? h('span', { class: 'muted num rsub' }, sub) : null);
 
+const numeral = (value, label) => h('div', { class: 'rnum' },
+  h('span', { class: 'num-display' }, value), h('span', { class: 'label' }, label));
+
 function stepper(app, week) {
   const btn = (delta, glyph, label, off) => h('button', {
     type: 'button', class: 'tap rstep', 'aria-label': label, disabled: off, onClick: () => stepWeek(app, delta),
@@ -188,6 +191,10 @@ export function renderReview(root, app) {
         stepper(app, week)),
       h('p', { class: 'muted rrange' }, `${formatDayLabel(m.weekStart)} ${dash} ${formatDayLabel(m.weekEnd)}`),
       lastChange(app, week),
+      h('div', { class: 'rnums' },
+        numeral(sl.avgMinutes == null ? dash : formatDuration(sl.avgMinutes), 'Sleep avg'),
+        numeral(`${m.water.daysOnTarget}/${m.water.days}`, 'Water days'),
+        numeral(String(pagesTotal), 'Pages')),
       h('section', { class: 'tsec', 'aria-label': 'Habits' }, h('div', { class: 'cap' }, 'Habits'), habitsBlock(m)),
       h('section', { class: 'tsec', 'aria-label': 'Health' },
         h('div', { class: 'cap' }, 'Health'),

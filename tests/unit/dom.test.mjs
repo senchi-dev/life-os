@@ -40,3 +40,21 @@ test('h(): normal props and text children', () => {
   assert.equal('title' in el.attrs, false);
   assert.deepEqual(el.kids.map((k) => k.text), ['a', '5', 'b']);
 });
+
+test('longPress: holds fire after ms; cancel() stops a pending hold and later presses', async () => {
+  const { longPress } = await import('../../js/ui/dom.js');
+  const el = new FakeEl('button');
+  const fire = (t) => el.listeners[t].forEach((f) => f({ clientX: 0, clientY: 0, pointerType: 'touch' }));
+  let holds = 0;
+  const lp = longPress(el, { ms: 20, onHold: () => { holds++; } });
+  fire('pointerdown');
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(holds, 1);
+  fire('pointerdown');
+  lp.cancel();
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(holds, 1, 'cancelled before the threshold');
+  fire('pointerdown');
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(holds, 1, 'a cancelled handle stays dead');
+});

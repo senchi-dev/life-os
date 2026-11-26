@@ -34,15 +34,30 @@ export function ritualsForToday(rituals, logs, todayKey) {
     const done = !!(log && log.done_at);
     const overdue = occ < todayKey;
     if (overdue && done) continue;
-    const n = ritual.checklist.length;
-    const state = Array.from({ length: n }, (_, i) => !!(log && log.checklist_state && log.checklist_state[i]));
+    const state = ritualState(ritual, log);
     out.push({ ritual, occurrence: occ, weekStart: ws, overdue, state, done });
   }
   return out;
 }
 
-export function toggleItem(state, i, n) {
-  const next = Array.from({ length: n }, (_, k) => !!state[k]);
-  next[i] = !next[i];
-  return { state: next, done: next.length > 0 && next.every(Boolean) };
+const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+// Tick state per checklist item. `checklist_state` is {itemText: bool}; v1 rows hold a positional array,
+// read as-is (by position) until the next toggle rewrites them as an object. A renamed item reads as unticked.
+export function ritualState(ritual, log) {
+  const items = ritual?.checklist ?? [];
+  const raw = log?.checklist_state;
+  if (Array.isArray(raw)) return items.map((_, i) => raw[i] === true);
+  if (isPlainObject(raw)) return items.map((text) => raw[text] === true);
+  return items.map(() => false);
+}
+
+// `state` is the current boolean[] (from ritualState); returns the object form to store. An invalid index changes nothing.
+export function toggleItem(state, i, items) {
+  const next = items.map((_, k) => !!state?.[k]);
+  if (Number.isInteger(i) && i >= 0 && i < items.length) next[i] = !next[i];
+  return {
+    state: Object.fromEntries(items.map((text, k) => [text, next[k]])),
+    done: next.length > 0 && next.every(Boolean),
+  };
 }

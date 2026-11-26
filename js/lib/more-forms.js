@@ -93,3 +93,13 @@ export function scheduleLabel(habit) {
 }
 
 export const currentBookId = (books, settings) => pickCurrentBook(books, settings)?.id ?? null;
+
+// Sign-out wipes this device's queue and gym draft (M2). null: nothing would be lost, sign out at once.
+export function signOutWarning({ hasDraft = false, pending = 0 } = {}) {
+  const n = Number.isFinite(pending) && pending > 0 ? Math.floor(pending) : 0;
+  if (!hasDraft && !n) return null;
+  const changes = n === 1 ? '1 change is not synced yet' : `${n} changes are not synced yet`;
+  const what = hasDraft && n ? `A workout is open and ${changes}` : hasDraft ? 'A workout is open' : changes;
+  const lost = n > 1 || (hasDraft && n) ? 'They will be lost.' : 'It will be lost.';
+  return `${what}. Sign out anyway? ${lost}`;
+}

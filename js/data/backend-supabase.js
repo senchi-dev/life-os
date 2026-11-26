@@ -38,15 +38,37 @@ async function run(builder) {
   return res?.data ?? null;
 }
 
+export const IN_CHUNK = 50; // ids per request: keeps the URL short enough for PostgREST
+
+const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
 export function createSupabaseBackend(client) {
+  function build(table, q, inCol, inVals, withRange) {
+    let b = client.from(table).select('*').match(q.eq ?? {});
+    if (inCol) b = b.in(inCol, inVals);
+    for (const [k, v] of Object.entries(q.is ?? {})) b = b.is(k, v);
+    for (const [k, v] of Object.entries(q.gte ?? {})) b = b.gte(k, v);
+    for (const [k, v] of Object.entries(q.lte ?? {})) b = b.lte(k, v);
+    if (q.order) b = b.order(q.order[0], { ascending: q.order[1] });
+    if (withRange && q.range) b = b.range(q.range[0], q.range[1]);
+    return b;
+  }
   return {
     async select(table, q = {}) {
-      let b = client.from(table).select('*').match(q.eq ?? {});
-      for (const [k, v] of Object.entries(q.gte ?? {})) b = b.gte(k, v);
-      for (const [k, v] of Object.entries(q.lte ?? {})) b = b.lte(k, v);
-      if (q.order) b = b.order(q.order[0], { ascending: q.order[1] });
-      if (q.range) b = b.range(q.range[0], q.range[1]);
-      return (await run(b)) ?? [];
+      const ins = Object.entries(q.in ?? {});
+      if (!ins.length) return (await run(build(table, q, null, null, true))) ?? [];
+      if (ins.length > 1) throw new Error('select supports one in filter per request');
+      const [col, vals] = ins[0];
+      if (!vals.length) return [];
+      if (vals.length <= IN_CHUNK) return (await run(build(table, q, col, vals, true))) ?? [];
+      // More ids than one request takes: one request per chunk (no per-chunk range), then merge, re-order, slice.
+      let out = [];
+      for (let i = 0; i < vals.length; i += IN_CHUNK) {
+        out.push(...((await run(build(table, q, col, vals.slice(i, i + IN_CHUNK), false))) ?? []));
+      }
+      if (q.order) { const [c, asc] = q.order; out = out.sort((a, b) => cmp(a[c], b[c]) * (asc ? 1 : -1)); }
+      if (q.range) out = out.slice(q.range[0], q.range[1] + 1);
+      return out;
     },
     async upsert(table, rows, opts = {}) {
       const list = Array.isArray(rows) ? rows : [rows];

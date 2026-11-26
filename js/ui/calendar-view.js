@@ -2,6 +2,8 @@
 import { h } from './dom.js';
 import { loadingNodes } from './loading.js';
 import { agenda } from '../lib/agenda.js';
+import { plannedRows } from '../lib/schedule.js';
+import { displayMinutes } from '../lib/workout.js';
 import { validateEvent, splitWindow } from '../lib/event-form.js';
 import { formatDayLabel, addDays, isNewDay, localDateKey } from '../lib/dates.js';
 import * as repo from '../data/repo.js';
@@ -105,7 +107,30 @@ function labelled(text, control) {
   return h('label', { class: 'clabel' }, h('span', { class: 'muted' }, text), control);
 }
 
+// The 7-day agenda with the Gym plan merged in by date (spec 4a): a planned slot is a muted "Upper Force · planned" row,
+// a finished workout replaces it ("Upper Force · 58 min", dash when the duration is unknown, A9). Gym rows go last in the day.
+export function calendarPlanned(snapshot, todayKey) {
+  const s = snapshot ?? {};
+  const days = agenda(s.events ?? [], s.rituals ?? [], todayKey, 7);
+  const rows = plannedRows({ slots: s.scheduleSlots ?? [], routines: s.routines ?? [], workouts: s.workouts ?? [], todayKey, days: 7 });
+  for (const r of rows) {
+    const day = days.find((d) => d.date === r.date);
+    if (!day) continue;
+    day.items.push(r.kind === 'done'
+      ? { kind: 'gym', state: 'done', title: r.name, label: `${r.name} · ${displayMinutes(r.minutes)}`, href: `#/gym/history/${encodeURIComponent(r.workoutId)}`, muted: false }
+      : { kind: 'gym', state: 'planned', title: r.name, label: `${r.name} · planned`, href: '#/gym', muted: true });
+  }
+  return days;
+}
+
+function gymItem(it) {
+  return h('a', { class: `tap citem is-gym${it.muted ? ' is-planned' : ''}`, href: it.href },
+    h('span', { class: 'num ctime' }, 'Gym'),
+    h('span', { class: 'ellip grow', lang: '' }, it.label));
+}
+
 function agendaItem(app, it, byId) {
+  if (it.kind === 'gym') return gymItem(it);
   if (it.kind === 'ritual') {
     return h('div', { class: 'citem is-ritual' },
       h('span', { class: 'num ctime' }, hhmm(it.time)),
@@ -179,7 +204,7 @@ export function renderCalendar(root, app) {
   const byId = new Map(events.map((e) => [e.id, e]));
   const { later } = splitWindow(events, app.todayKey, 7);
   const laterShown = later.slice(0, 20);
-  const days = agenda(events, app.snapshot.rituals ?? [], app.todayKey, 7);
+  const days = calendarPlanned(app.snapshot, app.todayKey);
 
   root.replaceChildren(
     h('div', { class: 'cal' },

@@ -11,8 +11,8 @@ function open(dbName, store) {
   });
 }
 
-export function createIdbStorage(dbName = 'lifeos', store = 'outbox') {
-  const tx = async (mode, fn) => {
+function makeTx(dbName, store) {
+  return async (mode, fn) => {
     const db = await open(dbName, store);
     try {
       return await new Promise((resolve, reject) => {
@@ -26,9 +26,24 @@ export function createIdbStorage(dbName = 'lifeos', store = 'outbox') {
       db.close();
     }
   };
+}
+
+export function createIdbStorage(dbName = 'lifeos', store = 'outbox') {
+  const tx = makeTx(dbName, store);
   return {
     async load() { return (await tx('readonly', (s) => s.get(KEY))) ?? []; },
     async save(ops) { await tx('readwrite', (s) => s.put(ops, KEY)); },
     async clear() { await tx('readwrite', (s) => s.delete(KEY)); },
+  };
+}
+
+// Key-value store in the same DB and store as the outbox (no version bump); keys must not be 'ops'.
+export function createIdbKv(dbName = 'lifeos', store = 'outbox') {
+  const tx = makeTx(dbName, store);
+  return {
+    async get(key) { return tx('readonly', (s) => s.get(key)); },
+    async set(key, value) { await tx('readwrite', (s) => s.put(value, key)); },
+    async del(key) { await tx('readwrite', (s) => s.delete(key)); },
+    async delPrefix(prefix) { await tx('readwrite', (s) => s.delete(IDBKeyRange.bound(prefix, `${prefix}\uffff`))); },
   };
 }

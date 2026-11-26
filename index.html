@@ -5,8 +5,8 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' https://ffuutqdvpiitpgennhzu.supabase.co wss://ffuutqdvpiitpgennhzu.supabase.co; img-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafaf8">
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121211">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#0b0c0e">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0c0e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,13 +15,17 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/gym.css">
   <title>Life OS</title>
 </head>
 <body>
   <div id="banner" class="banner" role="status" hidden></div>
+  <div id="pending" class="pending" role="status" hidden></div>
   <main id="view" tabindex="-1"></main>
+  <a id="minibar" class="minibar tap" href="#/workout" hidden></a>
   <nav class="tabbar" aria-label="Main">
     <a class="tap" href="#/today" data-route="today">Today</a>
+    <a class="tap" href="#/gym" data-route="gym">Gym</a>
     <a class="tap" href="#/calendar" data-route="calendar">Calendar</a>
     <a class="tap" href="#/review" data-route="review">Review</a>
     <a class="tap" href="#/more" data-route="more">More</a>

@@ -7,10 +7,13 @@ import { DEFAULT_WATER_TARGET_L, DEFAULT_WEEKLY_PAGES } from '../lib/health.js';
 import { encryptExport, validatePassphrase, exportFileName } from '../lib/crypto-export.js';
 import {
   validateWaterTarget, validateWeeklyPages, validateHabit, validateRitual, validateBook,
-  moveHabit, nextSort, scheduleLabel, currentBookId, WEEKDAY_NAMES,
+  moveHabit, nextSort, scheduleLabel, currentBookId, WEEKDAY_NAMES, signOutWarning,
 } from '../lib/more-forms.js';
+import { sheet } from './components.js';
 import { localDateKey } from '../lib/dates.js';
 import * as repo from '../data/repo.js';
+import { importBody, resetImport } from './import-view.js';
+import { currentTheme, writeTheme, applyTheme, themeColor, applyThemeColor } from '../lib/theme.js';
 
 // UI-only state; survives re-renders but not reloads. drafts: 'form.field' -> unsaved value.
 const ui = {
@@ -312,6 +315,7 @@ function clearPassphrases() {
 
 // Full reset of the More screen state (sign-out, auth loss): nothing typed may outlive the session.
 export function resetMore() {
+  resetImport();
   clearPassphrases();
   clearTimeout(ui.confirmTimer);
   Object.assign(ui, { open: null, notice: null, drafts: {}, habitEdit: null, ritualEdit: null, confirmAll: false, confirmTimer: null, exporting: false, busyAccount: false });
@@ -375,6 +379,21 @@ function accountBody(app) {
     app.rerender();
     return toPromise(fn).then(() => {}, () => {}).finally(() => { ui.busyAccount = false; });
   };
+  // An open workout or unsynced changes are wiped by a sign-out: say so first (step 1: this sheet, step 2: its button).
+  const guarded = (fn) => {
+    const warning = signOutWarning({ hasDraft: !!app.gym?.draft(), pending: app.ctx?.outbox?.pending() ?? 0 });
+    if (!warning) return run(fn);
+    let s = null;
+    s = sheet({
+      title: 'Sign out?',
+      body: h('p', { class: 'danger' }, warning),
+      actions: [
+        h('button', { type: 'button', class: 'tap', onClick: () => s.close() }, 'Cancel'),
+        h('button', { type: 'button', class: 'tap danger', onClick: () => { s.close(); run(fn); } }, 'Sign out anyway'),
+      ],
+    });
+    return undefined;
+  };
   const everywhere = () => {
     if (!ui.confirmAll) {
       ui.confirmAll = true;
@@ -382,11 +401,11 @@ function accountBody(app) {
       ui.confirmTimer = setTimeout(() => { ui.confirmAll = false; if (app.mode === 'app') app.rerender(); }, 6000);
       return app.rerender();
     }
-    run(() => app.signOutEverywhere()).then(() => {});
+    guarded(() => app.signOutEverywhere());
   };
   return h('div', { class: 'mform' },
     app.demo ? h('p', { class: 'muted' }, 'Signing out is not available in demo mode.') : null,
-    h('button', { type: 'button', class: 'tap mwide', disabled: off, onClick: () => run(() => app.signOut()) }, 'Sign out'),
+    h('button', { type: 'button', class: 'tap mwide', disabled: off, onClick: () => guarded(() => app.signOut()) }, 'Sign out'),
     h('button', {
       type: 'button', class: `tap mwide${ui.confirmAll ? ' mconfirm' : ''}`, disabled: off, onClick: everywhere,
     }, ui.confirmAll ? 'Tap again to sign out everywhere' : 'Sign out everywhere'));
@@ -400,6 +419,59 @@ const RUNBOOK = [
 ];
 const runbookBody = () => h('ol', { class: 'mlist' }, RUNBOOK.map((t) => h('li', {}, t)));
 
+// ---- Theme (per device, localStorage) ----
+const THEMES = [['dark', 'Dark'], ['light', 'Light'], ['system', 'System']];
+function themeStore() { try { return localStorage; } catch { return null; } }
+function setTheme(value) {
+  writeTheme(themeStore(), value);
+  applyTheme(document.documentElement, value);
+  const prefersLight = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: light)').matches;
+  applyThemeColor(document, themeColor(value, prefersLight));
+}
+function themeRow(app) {
+  const cur = currentTheme(document.documentElement, themeStore());
+  return h('section', { class: 'msec mtheme', 'aria-label': 'Theme' },
+    h('div', { class: 'label mtheme-label' }, 'Theme'),
+    h('div', { class: 'seg', role: 'group', 'aria-label': 'Theme' },
+      THEMES.map(([v, text]) => h('button', {
+        type: 'button', class: 'tap', 'aria-pressed': cur === v ? 'true' : 'false',
+        onClick: () => { setTheme(v); app.rerender(); },
+      }, text))));
+}
+
+// ---- Gym rows: habit picker, routines, exercises, import ----
+function gymHabitChoices(app) {
+  const s = app.snapshot;
+  const cur = s.settings?.gym_habit_id ?? null;
+  const list = sortedHabits(s).filter((x) => x.active || x.id === cur);
+  return { cur, list };
+}
+
+function setGymHabit(app, value) {
+  const id = value === '' ? null : value;
+  commit(app, 'gym', (snap) => { snap.settings = { ...(snap.settings ?? {}), gym_habit_id: id }; }, () => repo.saveSettings(app.ctx, { gym_habit_id: id }));
+}
+
+function gymRows(app) {
+  const { cur, list } = gymHabitChoices(app);
+  const sel = h('select', { class: 'field', 'aria-label': 'Gym habit', 'data-key': 'gym.habit' },
+    h('option', { value: '' }, 'None'),
+    list.map((x) => h('option', { value: x.id }, x.name)));
+  sel.value = list.some((x) => x.id === cur) ? cur : '';
+  sel.addEventListener('change', () => setGymHabit(app, sel.value));
+  return h('section', { class: 'msec mgym', 'aria-label': 'Gym' },
+    h('label', { class: 'mlabel mgrow' }, h('span', { class: 'cap' }, 'Gym habit'), sel,
+      h('span', { class: 'muted' }, 'Finishing a workout checks this habit.')),
+    notice('gym'),
+    h('a', { class: 'mhead mlink', href: '#/gym' }, h('span', { class: 'grow' }, 'Routines'), h('span', { class: 'mchev', 'aria-hidden': 'true' }, '›')),
+    h('a', { class: 'mhead mlink', href: '#/gym/exercises' }, h('span', { class: 'grow' }, 'Exercises'), h('span', { class: 'mchev', 'aria-hidden': 'true' }, '›')));
+}
+
+const striveBody = (app) => importBody(app);
+
+// Lets other screens (Gym empty state) land on More with a section already open.
+export function openMoreSection(id) { ui.open = id; ui.notice = null; }
+
 // ---- shell ----
 function sections(app) {
   const s = app.snapshot;
@@ -409,6 +481,7 @@ function sections(app) {
     ['habits', 'Habits', `${active} active`, habitsBody],
     ['rituals', 'Rituals', `${s.rituals.length}`, ritualsBody],
     ['books', 'Books', s.books.length ? `${s.books.length}` : '', booksBody],
+    ['strive', 'Import from Strive', '', striveBody],
     ['export', 'Export', '', exportBody],
     ['account', 'Account', '', accountBody],
     ['lost', 'If this phone is lost', '', runbookBody],
@@ -437,6 +510,8 @@ export function renderMore(root, app) {
   root.replaceChildren(
     h('div', { class: 'more' },
       h('h1', {}, 'More'),
+      themeRow(app),
+      gymRows(app),
       sections(app).map(([id, title, summary, body]) => {
         const open = ui.open === id;
         return h('section', { class: `msec${open ? ' is-open' : ''}`, 'aria-label': title },

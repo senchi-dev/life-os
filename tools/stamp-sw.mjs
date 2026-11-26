@@ -1,7 +1,7 @@
 // Node-only helper (not shipped): hashes the service-worker SHELL files, writes `// shell-hash: <hex>` into
 // sw.js and bumps CACHE ('lifeos-v1-N' -> N+1) only when the hash changed. Run via `npm run stamp`.
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,7 +38,27 @@ export function stamp(root = ROOT) {
   return { changed: true, hash: next, cache: sw.match(/const CACHE = '([^']+)'/)[1] };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// True when the stored hash in sw.js matches the SHELL files, i.e. `stamp()` would change nothing. Writes nothing.
+// `read(relPath)` is injectable (it also serves 'sw.js') so tests can alter content without touching disk.
+export function checkStamp(root = ROOT, read = (p) => readFileSync(join(root, p))) {
+  try {
+    const sw = String(read('sw.js'));
+    const stored = readStoredHash(sw);
+    return stored !== null && stored === computeShellHash(root, readShellFiles(sw), read);
+  } catch {
+    return false; // a missing/unreadable shell file or a malformed sw.js is a stale stamp, never a crash
+  }
+}
+
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+  if (process.argv.includes('--check')) {
+    if (!checkStamp()) {
+      console.error('stamp is stale: run npm run stamp');
+      process.exit(1);
+    }
+    console.log('stamp is current');
+    process.exit(0);
+  }
   const r = stamp();
   console.log(r.changed ? `stamped ${r.cache} (${r.hash.slice(0, 12)})` : 'shell unchanged');
 }
