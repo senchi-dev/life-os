@@ -72,9 +72,10 @@ test('index.html: five tabs in order, #pending status and #minibar link, gym sty
   assert.ok(existsSync(join(root, 'css/gym.css')));
 });
 
-test('More has a Theme row; login has OTP input styling hooks', () => {
+test('More has an Appearance section (layout + colours); login has OTP input styling hooks', () => {
   const more = read('js/ui/more-view.js');
-  assert.ok(more.includes("'Theme'") && more.includes('writeTheme') && more.includes('applyTheme'));
+  assert.ok(more.includes("'Appearance'") && more.includes('writeTheme') && more.includes('applyTheme'));
+  assert.ok(more.includes('writeLayout') && more.includes('applyLayout'));
   const auth = read('js/ui/auth-view.js');
   assert.ok(auth.includes('one-time-code') && auth.includes('auth-code') && auth.includes('Life OS'));
 });

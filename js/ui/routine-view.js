@@ -2,6 +2,7 @@
 // routineActions is DOM-free: validate every row, mutate the snapshot optimistically, enqueue, roll back on failure.
 // All user text (routine and exercise names) goes through h() as text nodes.
 import { h } from './dom.js';
+import { section } from './blocks.js';
 import { sheet } from './components.js';
 import { loadingNodes } from './loading.js';
 import { filterExercises, validateRoutineForm, validateRoutineItem, routineSaveOps, scheduleSaveOps, moveItem, ROUTINE_NAME_MAX } from '../lib/gym-forms.js';
@@ -342,8 +343,8 @@ export function renderRoutine(root, app, id) {
     back('#/gym', '‹ Gym'),
     h('header', { class: 'thead' }, h('h1', {}, isNew ? 'New routine' : 'Edit routine')),
     h('label', { class: 'mlabel' }, h('span', { class: 'muted' }, 'Name'), nameIn),
-    h('h2', { class: 'cap rcap' }, 'Exercises'),
-    list, hint, addBtn, err, notice(), saveBtn, archiveBtn));
+    section({ title: 'Exercises' }, list, hint, addBtn),
+    err, notice(), saveBtn, archiveBtn));
   paintItems();
   return undefined;
 }
@@ -387,8 +388,7 @@ export function renderSchedule(root, app) {
     back('#/gym', '‹ Gym'),
     h('header', { class: 'thead' }, h('h1', {}, 'Schedule')),
     h('p', { class: 'muted' }, 'Pick a routine for each weekday, or Rest. The Start button follows the rotation; this is the plan and the weekly count.'),
-    h('ul', { class: 'row-list slist', 'aria-label': 'Weekly schedule' }, rows),
-    count,
+    section({ title: 'Weekly plan' }, h('ul', { class: 'row-list slist', 'aria-label': 'Weekly schedule' }, rows), count),
     live.length ? null : h('p', { class: 'muted' }, 'No routines yet. Create one first.'),
     notice(), saveBtn));
   paintCount();

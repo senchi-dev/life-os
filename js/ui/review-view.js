@@ -1,6 +1,7 @@
 // Review tab: one calm screen of numbers for a week, then three prompts. No charts.
 import { h } from './dom.js';
 import { loadingNodes } from './loading.js';
+import { section, metrics, valueRow, list } from './blocks.js';
 import { reviewWeekStart, weeklyReview, oldestReviewWeek } from '../lib/review.js';
 import { formatDuration } from '../lib/health.js';
 import { addDays, formatDayLabel, isNewDay, localDateKey } from '../lib/dates.js';
@@ -101,15 +102,6 @@ function stepWeek(app, delta) {
 }
 
 // ---- pieces ----
-const line = (label, value, sub) =>
-  h('div', { class: 'rrow' },
-    h('span', { class: 'rlabel' }, label),
-    h('span', { class: 'num rval' }, value),
-    sub ? h('span', { class: 'muted num rsub' }, sub) : null);
-
-const numeral = (value, label) => h('div', { class: 'rnum' },
-  h('span', { class: 'num-display' }, value), h('span', { class: 'label' }, label));
-
 function stepper(app, week) {
   const btn = (delta, glyph, label, off) => h('button', {
     type: 'button', class: 'tap rstep', 'aria-label': label, disabled: off, onClick: () => stepWeek(app, delta),
@@ -129,23 +121,25 @@ function lastChange(app, week) {
     onClick: () => setKept(app, prev.week_start, value),
   }, label);
   return h('section', { class: 'tsec', 'aria-label': 'Last week’s change' },
-    h('div', { class: 'cap' }, 'Last week’s change'),
+    h('h2', { class: 'sec-title' }, 'Last week’s change'),
     h('p', { class: 'rchange' }, text),
     h('div', { class: 'rkept' }, h('span', { class: 'muted' }, 'Kept'), pick(true, 'Yes'), pick(false, 'No')));
 }
 
+// One row per habit (hits/target, since or 28-day consistency); misses on a line under it, danger when missed twice.
 function habitsBlock(m) {
   if (!m.habits.length) return h('p', { class: 'muted tempty' }, 'Add your habits in More.');
-  return h('div', {}, m.habits.map((hb) => {
+  return list(m.habits.map((hb) => {
     const flags = [];
     if (hb.missedDays > 0) flags.push(`missed ${hb.missedDays}d`);
     if (hb.missedTwice > 0) flags.push(`missed twice ×${hb.missedTwice}`);
-    return h('div', { class: 'rhabit' },
-      h('div', { class: 'rrow' },
-        h('span', { class: 'rlabel ellip' }, hb.name),
-        h('span', { class: 'num rval' }, `${hb.hits}/${hb.target ?? dash}`),
-        h('span', { class: 'muted num rsub' }, hb.since ? `since ${formatDayLabel(hb.since)}` : `28d ${fmtPct(hb.consistency28)}`)),
-      flags.length ? h('div', { class: `rflags${hb.missedTwice > 0 ? ' danger' : ' muted'}` }, flags.join(' · ')) : null);
+    return [
+      valueRow({
+        label: hb.name, value: `${hb.hits}/${hb.target ?? dash}`,
+        sub: hb.since ? `since ${formatDayLabel(hb.since)}` : `28d ${fmtPct(hb.consistency28)}`,
+      }),
+      flags.length ? h('p', { class: `rflags${hb.missedTwice > 0 ? ' danger' : ' muted'}` }, flags.join(' · ')) : null,
+    ];
   }));
 }
 
@@ -161,7 +155,7 @@ function textField(app, week, field, label) {
     scheduleFlush();
   });
   ta.addEventListener('blur', flushDrafts);
-  return h('label', { class: 'rprompt' }, h('span', { class: 'cap' }, label), ta);
+  return h('label', { class: 'rprompt' }, h('span', { class: 'sec-title' }, label), ta);
 }
 
 export function renderReview(root, app) {
@@ -182,6 +176,8 @@ export function renderReview(root, app) {
     water: s.water ?? [], daily: s.daily ?? [], settings: s.settings,
   });
   const sl = m.sleep;
+  const sleepAvg = sl.avgMinutes == null ? dash : formatDuration(sl.avgMinutes);
+  const waterDays = `${m.water.daysOnTarget}/${m.water.days}`;
 
   root.replaceChildren(
     h('div', { class: 'review' },
@@ -190,15 +186,15 @@ export function renderReview(root, app) {
         stepper(app, week)),
       h('p', { class: 'muted rrange' }, `${formatDayLabel(m.weekStart)} ${dash} ${formatDayLabel(m.weekEnd)}`),
       lastChange(app, week),
-      h('div', { class: 'rnums' },
-        numeral(sl.avgMinutes == null ? dash : formatDuration(sl.avgMinutes), 'Sleep avg'),
-        numeral(`${m.water.daysOnTarget}/${m.water.days}`, 'Water days')),
-      h('section', { class: 'tsec', 'aria-label': 'Habits' }, h('div', { class: 'cap' }, 'Habits'), habitsBlock(m)),
-      h('section', { class: 'tsec', 'aria-label': 'Health' },
-        h('div', { class: 'cap' }, 'Health'),
-        line('Sleep', sl.avgMinutes == null ? dash : formatDuration(sl.avgMinutes), sl.nights ? `${sl.nights} nights` : null),
-        line('Bed time', sl.avgBed ?? dash, sl.bedSpreadMin == null ? null : `±${sl.bedSpreadMin} min`),
-        line('Water', `${m.water.daysOnTarget}/${m.water.days}`, 'days on target')),
+      metrics([
+        { key: 'sleep', label: 'Sleep avg', value: sleepAvg },
+        { key: 'water', label: 'Water days', value: waterDays },
+      ]),
+      section({ title: 'Habits' }, habitsBlock(m)),
+      section({ title: 'Health' }, list(
+        valueRow({ label: 'Sleep', value: sleepAvg, sub: sl.nights ? `${sl.nights} nights` : null }),
+        valueRow({ label: 'Bed time', value: sl.avgBed ?? dash, sub: sl.bedSpreadMin == null ? null : `±${sl.bedSpreadMin} min` }),
+        valueRow({ label: 'Water', value: waterDays, sub: 'days on target' }))),
       h('section', { class: 'tsec rprompts', 'aria-label': 'Notes' },
         FIELDS.map(([f, label]) => textField(app, week, f, label))),
       ui.notice ? h('p', { class: 'danger tnotice', role: 'status' }, ui.notice) : null),

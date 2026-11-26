@@ -168,7 +168,7 @@ test('loadSnapshot normalizes HH:MM:SS times and gives events a 90-day window', 
     events: [
       ev('a', today, '14:00:00', '15:30:00'), ev('y', addDays(today, -1), '10:00:00', null),
       ev('far60', addDays(today, 60), null, null), ev('far120', addDays(today, 120), null, null),
-      ev('old', addDays(today, -2), null, null),
+      ev('old', addDays(today, -36), null, null),
     ],
     rituals: [{ id: 'r', name: 'R', weekday: 1, time: '19:30:00', checklist: [] }],
   });
@@ -233,4 +233,26 @@ test('saveRitualLog only accepts the {itemText: bool} object form', async () => 
   for (const bad of [[true, false], null, undefined, 'x', { A: 'yes' }]) {
     await assert.rejects(() => repo.saveRitualLog(ctx, 'r1', '2026-11-16', bad, false), TypeError, JSON.stringify(bad));
   }
+});
+
+// ---- Task 11: wider event window, on-demand range loads ----
+test('snapshot loads events from today-35', async () => {
+  const today = '2026-11-26';
+  const ev = (id, date) => ({ id, title: id, date, start_time: null, end_time: null, location: null });
+  const { ctx } = await mk({ events: [ev('in35', addD2(today, -35)), ev('out36', addD2(today, -36))] });
+  const snap = await repo.loadSnapshot(ctx, today);
+  assert.deepEqual(snap.events.map((e) => e.id), ['in35']);
+});
+
+test('loadEvents returns a range with normalised times', async () => {
+  const ev = (id, date, s, e) => ({ id, title: id, date, start_time: s, end_time: e, location: null });
+  const { ctx } = await mk({ events: [
+    ev('b', '2026-06-10', '09:00:00', '10:30:00'), ev('a', '2026-06-01', null, null),
+    ev('out', '2026-07-01', '09:00:00', null), ev('before', '2026-05-31', null, null),
+  ] });
+  const got = await repo.loadEvents(ctx, '2026-06-01', '2026-06-30');
+  assert.deepEqual(got.map((e) => e.id), ['a', 'b']);
+  assert.equal(got[1].start_time, '09:00');
+  assert.equal(got[1].end_time, '10:30');
+  assert.equal(got[0].start_time, null);
 });

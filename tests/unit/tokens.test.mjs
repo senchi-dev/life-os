@@ -55,7 +55,9 @@ test('light tokens under data-theme=light and under system + prefers light', () 
 });
 test('type, spacing and radius scales', () => {
   const t = decls(block(css, ':root {'));
-  assert.equal(t['--fs-label'], '0.75rem');
+  assert.equal(t['--fs-label'], '0.8125rem');
+  assert.equal(t['--fs-sec'], '0.9375rem');
+  assert.equal(t['--fs-big'], '1.3125rem');
   assert.equal(t['--fs-s'], '0.8125rem');
   assert.equal(t['--fs-m'], '1rem');
   assert.equal(t['--fs-l'], '1.25rem');
@@ -89,6 +91,33 @@ for (const [name, T] of [['dark', DARK], ['light', LIGHT]]) {
     assert.ok(ink >= 4.5, `${name} accent-ink on accent = ${ink.toFixed(2)}`);
   });
 }
+
+// Calendar colours (phase 2c global constraints): gym / event / ritual.
+const CAL = {
+  dark: { '--cal-gym': '#2fd27a', '--cal-event': '#5aa9ff', '--cal-ritual': '#f2b33d' },
+  light: { '--cal-gym': '#0a7239', '--cal-event': '#1f63c4', '--cal-ritual': '#9a5b00' },
+};
+test('calendar tokens reach 4.5:1 in both themes', () => {
+  for (const [name, decl, cal, T] of [['dark', dark, CAL.dark, DARK], ['light', light, CAL.light, LIGHT], ['system', system, CAL.light, LIGHT]]) {
+    for (const [k, v] of Object.entries(cal)) {
+      assert.equal(decl[k], v, `${name} ${k}`);
+      for (const bg of ['--bg', '--surface', '--surface-2']) {
+        const r = ratio(v, T[bg]);
+        assert.ok(r >= 4.5, `${name} ${k} on ${bg} = ${r.toFixed(2)}`);
+      }
+    }
+  }
+});
+test('muted and faint reach 4.5:1 on bg, surface and surface-2', () => {
+  for (const [name, decl] of [['dark', dark], ['light', light], ['system', system]]) {
+    for (const text of ['--muted', '--faint']) {
+      for (const bg of ['--bg', '--surface', '--surface-2']) {
+        const r = ratio(decl[text], decl[bg]);
+        assert.ok(r >= 4.5, `${name} ${text} on ${bg} = ${r.toFixed(2)}`);
+      }
+    }
+  }
+});
 
 test('prefers-reduced-motion block collapses motion to 0.01ms', () => {
   const b = block(css, '@media (prefers-reduced-motion: reduce)');

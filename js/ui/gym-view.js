@@ -8,6 +8,7 @@ import { renderLibrary } from './library-view.js';
 import { renderRoutine, renderSchedule } from './routine-view.js';
 import { renderHistory } from './history-view.js';
 import { openMoreSection } from './more-view.js';
+import { section, metrics, list, valueRow } from './blocks.js';
 import { formatDayLabel } from '../lib/dates.js';
 
 const START_FAIL = 'Could not start the workout. Try again.';
@@ -35,15 +36,8 @@ async function start(app, routineId) {
   return false;
 }
 
-const section = (label, aside, ...kids) =>
-  h('section', { class: 'gsec', 'aria-label': label },
-    h('div', { class: 'ghead' }, h('h2', { class: 'cap' }, label), aside ?? null),
-    ...kids);
-
-const linkRow = (href, main, sub) =>
-  h('a', { class: 'tap grow-row', href },
-    h('span', { class: 'exbody' }, h('span', { class: 'ellip', lang: '' }, main), sub ? h('span', { class: 'muted ellip' }, sub) : null),
-    h('span', { class: 'mchev', 'aria-hidden': 'true' }, '›'));
+// A link row to a Gym sub-screen: name left (sub line under it), optional number right, chevron.
+const linkRow = (href, label, sub, value) => valueRow({ href, label, sub: sub || null, value: value ?? null, lang: '' });
 
 function startBar(app, m) {
   const s = m.start;
@@ -78,7 +72,7 @@ function renderHome(root, app) {
         h('a', { class: 'tap gbtn', href: '#/gym/routine/new' }, 'New routine'),
         h('button', { type: 'button', class: 'tap gbtn', onClick: (e) => { guardedStart(e.currentTarget, () => start(app, null)); } }, 'Empty workout')),
       notice,
-      section('Exercises', null, linkRow('#/gym/exercises', 'Exercises', plural(m.exerciseCount, 'exercise')))));
+      section({ title: 'Exercises' }, list(linkRow('#/gym/exercises', 'Exercises', plural(m.exerciseCount, 'exercise'))))));
     return;
   }
 
@@ -89,17 +83,18 @@ function renderHome(root, app) {
     h('h1', {}, 'Gym'),
     startBar(app, m),
     notice,
-    section('This week', h('span', { class: 'num muted' }, `${m.week.done} / ${m.week.plan}`), dots),
-    section('Schedule', null, linkRow('#/gym/schedule', m.schedule || 'No schedule set', 'Mon to Sun')),
-    section('Routines', h('a', { class: 'tap chip', href: '#/gym/routine/new' }, '+ New'),
+    metrics([{ label: 'This week', value: `${m.week.done} / ${m.week.plan}`, progress: m.week.plan ? Math.min(1, m.week.done / m.week.plan) : 0 }]),
+    dots,
+    section({ title: 'Schedule' }, list(linkRow('#/gym/schedule', m.schedule || 'No schedule set', 'Mon to Sun'))),
+    section({ title: 'Routines', count: m.routines.length || null, aside: h('a', { class: 'tap chip', href: '#/gym/routine/new' }, '+ New') },
       m.routines.length
-        ? h('div', { class: 'glist' }, m.routines.map((r) => linkRow(`#/gym/routine/${r.id}`, r.name,
+        ? list(m.routines.map((r) => linkRow(`#/gym/routine/${r.id}`, r.name,
           [plural(r.count, 'exercise'), r.lastDay ? `last ${formatDayLabel(r.lastDay)}` : null].filter(Boolean).join(' · '))))
         : h('p', { class: 'muted' }, 'No routines yet.')),
-    section('Exercises', null, linkRow('#/gym/exercises', 'Exercises', `${m.exerciseCount} · search, filter, add your own`)),
-    section('History', null,
+    section({ title: 'Exercises' }, list(linkRow('#/gym/exercises', 'Exercises', 'Search, filter, add your own', m.exerciseCount))),
+    section({ title: 'History' },
       m.history.length
-        ? h('div', { class: 'glist' }, m.history.map((w) => linkRow(`#/gym/history/${w.id}`, `${formatDayLabel(w.day)} · ${w.name}`,
+        ? list(m.history.map((w) => linkRow(`#/gym/history/${w.id}`, `${formatDayLabel(w.day)} · ${w.name}`,
           [w.duration !== '—' ? w.duration : null, w.sets != null ? plural(w.sets, 'set') : null, w.prs ? plural(w.prs, 'PR') : null].filter(Boolean).join(' · '))))
         : h('p', { class: 'muted' }, 'No workouts in the last 6 weeks.'))));
 }

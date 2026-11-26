@@ -1,12 +1,14 @@
 // Service worker: cache-first shell, network-only for Supabase. Bump CACHE on every shell change.
-const CACHE = 'lifeos-v1-63';
-// shell-hash: d13199d1ee2d89717bec830c0666f82b08a45eb69ebd38a34d53e43f4bb8d103
+const CACHE = 'lifeos-v1-80';
+// shell-hash: 45b742f066a3de265564852e0160ae5c765cd995db1470b44c5362c6e5fea423
 const SHELL = [
   './',
   'index.html',
   'manifest.webmanifest',
   'css/app.css',
   'css/gym.css',
+  'css/layouts.css',
+  'css/calendar.css',
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
@@ -24,12 +26,15 @@ const SHELL = [
   'js/data/tables.js',
   'js/lib/agenda.js',
   'js/lib/books.js',
+  'js/lib/cal-items.js',
+  'js/lib/cal-range.js',
   'js/lib/auth-gate.js',
   'js/lib/auth-recovery.js',
   'js/lib/boot-seed.js',
   'js/lib/crypto-export.js',
   'js/lib/dates.js',
   'js/lib/event-form.js',
+  'js/lib/event-window.js',
   'js/lib/gym-forms.js',
   'js/lib/gym-index.js',
   'js/lib/gym-runtime.js',
@@ -38,6 +43,7 @@ const SHELL = [
   'js/lib/habits.js',
   'js/lib/health.js',
   'js/lib/ids.js',
+  'js/lib/layout.js',
   'js/lib/more-forms.js',
   'js/lib/review.js',
   'js/lib/rituals.js',
@@ -47,9 +53,12 @@ const SHELL = [
   'js/lib/strive-import.js',
   'js/lib/theme.js',
   'js/lib/ticker.js',
+  'js/lib/timeline.js',
   'js/lib/workout-draft.js',
   'js/lib/workout.js',
   'js/ui/auth-view.js',
+  'js/ui/blocks.js',
+  'js/ui/cal-views.js',
   'js/ui/calendar-view.js',
   'js/ui/components.js',
   'js/ui/dom.js',

@@ -2,6 +2,7 @@
 import { ALL_TABLES, SNAPSHOT_PAST_DAYS, HABIT_LOG_PAST_DAYS, GYM_SNAPSHOT_DAYS } from './tables.js';
 import { DEFAULT_RITUALS } from '../lib/rituals.js';
 import { addDays, parseDateKey, weekStart } from '../lib/dates.js';
+import { bootWindow } from '../lib/event-window.js';
 
 // PostgREST returns time columns as 'HH:MM:SS[.fff]'; all logic uses 'HH:MM'.
 export function normalizeTime(t) {
@@ -22,8 +23,7 @@ export function normalizeGymRow(table, row) {
   if ('weight_kg' in out && out.weight_kg !== null && out.weight_kg !== undefined) out.weight_kg = Number(out.weight_kg);
   return out;
 }
-const EVENT_PAST_DAYS = 1;
-const EVENT_FUTURE_DAYS = 90;
+const fixEvent = (e) => ({ ...e, start_time: normalizeTime(e.start_time), end_time: normalizeTime(e.end_time) });
 
 const iso = (v) => (v instanceof Date ? v.toISOString() : v);
 const upsertOp = (table, rows, onConflict, ignoreDuplicates) => ({
@@ -47,7 +47,8 @@ export async function loadSnapshot(ctx, todayKey, { pastDays = SNAPSHOT_PAST_DAY
   const habitRange = { gte: { date: addDays(todayKey, -Math.max(habitLogDays, pastDays)) }, lte: { date: to }, order: ['date', true] };
   const fromTs = parseDateKey(from).toISOString();
   const toTs = parseDateKey(addDays(to, 1)).toISOString();
-  const evRange = { gte: { date: addDays(todayKey, -EVENT_PAST_DAYS) }, lte: { date: addDays(todayKey, EVENT_FUTURE_DAYS) }, order: ['date', true] };
+  const ev = bootWindow(todayKey);
+  const evRange = { gte: { date: ev.from }, lte: { date: ev.to }, order: ['date', true] };
   const b = ctx.backend;
   const gymFrom = parseDateKey(addDays(todayKey, -GYM_SNAPSHOT_DAYS)).toISOString();
   const [settings, habits, habitLogs, rituals, ritualLogs, events, sleep, water, daily, books, reviews,
@@ -81,7 +82,6 @@ export async function loadSnapshot(ctx, todayKey, { pastDays = SNAPSHOT_PAST_DAY
     const sets = (await b.select('sets', { in: { workout_exercise_id: workoutExercises.map((x) => x.id) }, order: ['done_at', true] })).map(fixG('sets'));
     activeWorkout = { workout: open, workoutExercises, sets };
   }
-  const fixEvent = (e) => ({ ...e, start_time: normalizeTime(e.start_time), end_time: normalizeTime(e.end_time) });
   const fixRitual = (r) => ({ ...r, time: normalizeTime(r.time) });
   return {
     settings: settings[0] ?? null, habits, habitLogs, rituals: rituals.map(fixRitual), ritualLogs, events: events.map(fixEvent), sleep,
@@ -90,6 +90,12 @@ export async function loadSnapshot(ctx, todayKey, { pastDays = SNAPSHOT_PAST_DAY
     routineItems: routineItems.map(fixG('routine_items')), scheduleSlots: scheduleSlots.map(fixG('schedule_slots')),
     workouts, activeWorkout,
   };
+}
+
+// Events in [from, to] (inclusive date keys), for calendar ranges outside the boot window.
+export async function loadEvents(ctx, from, to) {
+  const rows = await ctx.backend.select('events', { gte: { date: from }, lte: { date: to }, order: ['date', true] });
+  return rows.map(fixEvent);
 }
 
 export async function ensureDefaults(ctx) {

@@ -1,10 +1,12 @@
-// Today screen: the day score ring, three tiles, the Start bar, then habits and the rest of the day.
+// Today screen: the day score, the metrics (Habits / Water / Sleep / Next), the Start bar, then habits and the rest of the day.
+// Built from layout blocks (js/ui/blocks.js): the layout decides tiles vs rows, the actions are the same in every layout.
 // Writes are optimistic and never block the UI. Handlers live in todayActions(app), a DOM-free factory that reads
 // app.todayKey, the snapshot and the clock at action time (never from a render-time closure).
 import { h, longPress } from './dom.js';
 import { loadingNodes } from './loading.js';
 import { buildTodayModel } from './today-model.js';
-import { ring, tile, sheet } from './components.js';
+import { sheet } from './components.js';
+import { section, metrics, statusRow, valueRow, list, score as scoreBlock } from './blocks.js';
 import { nextStatus } from '../lib/habits.js';
 import { ritualState, toggleItem } from '../lib/rituals.js';
 import { LITER_CHIPS, buildSleep, formatDuration, parseLiters } from '../lib/health.js';
@@ -206,7 +208,7 @@ function scheduleMidnight(app, act) {
 // ---- small pieces ----
 const row = (label, value, ...controls) =>
   h('div', { class: 'trow' },
-    h('div', { class: 'tlabel' }, h('span', { class: 'cap' }, label), value),
+    h('div', { class: 'tlabel' }, h('span', { class: 'muted' }, label), value),
     h('div', { class: 'tctl' }, controls));
 
 const chip = (text, onClick, extra = {}) =>
@@ -219,14 +221,12 @@ function holdTap(el, onTap, onHold) {
   return el;
 }
 
-function nowNextRows(model, now) {
-  return model.nowNext.map((e) => {
-    const current = e.start_time <= now && (e.end_time ? now < e.end_time : true) && model.nowNext[0] === e;
-    return h('div', { class: 'tnow' },
-      h('span', { class: 'cap' }, current ? 'Now' : 'Next'),
-      h('span', { class: 'num' }, e.start_time),
-      h('span', { class: 'ellip' }, e.title));
-  });
+// The first Now/Next item as a metric ("HH:MM title"), labelled "Now" while it is running; no tap action.
+export function nextMetric(model, now) {
+  const e = model.nowNext[0];
+  if (!e) return null;
+  const current = e.start_time <= now && (!e.end_time || now < e.end_time);
+  return { key: 'next', label: current ? 'Now' : 'Next', value: `${e.start_time} ${e.title}` };
 }
 
 function ritualBlock(app, act, entry) {
@@ -234,13 +234,12 @@ function ritualBlock(app, act, entry) {
   const open = ui.rituals.has(id);
   const n = entry.ritual.checklist.length;
   const count = entry.state.filter(Boolean).length;
-  const head = h('button', {
-    type: 'button', class: `tap tline${entry.done ? ' is-done' : ''}`, 'aria-expanded': open ? 'true' : 'false',
-    onClick: () => { if (open) ui.rituals.delete(id); else ui.rituals.add(id); app.rerender(); },
-  },
-  h('span', { class: 'ellip grow' }, entry.ritual.name),
-  entry.overdue ? h('span', { class: 'muted' }, 'overdue') : null,
-  h('span', { class: 'muted num' }, `${count}/${n}`));
+  const onClick = () => { if (open) ui.rituals.delete(id); else ui.rituals.add(id); app.rerender(); };
+  const sub = entry.overdue ? 'overdue' : null;
+  const head = entry.done
+    ? statusRow({ label: entry.ritual.name, status: 'done', sub, onClick })
+    : valueRow({ label: entry.ritual.name, value: `${count} of ${n}`, sub, onClick });
+  head.setAttribute('aria-expanded', open ? 'true' : 'false');
   const items = open
     ? h('div', { class: 'tchecks' }, entry.ritual.checklist.map((text, i) =>
       h('button', {
@@ -248,26 +247,17 @@ function ritualBlock(app, act, entry) {
         'aria-checked': entry.state[i] ? 'true' : 'false', onClick: () => act.toggleRitual(entry, i),
       }, h('span', { class: 'box', 'aria-hidden': 'true' }), h('span', { class: 'grow' }, text))))
     : null;
-  return h('div', {}, head, items);
+  return [head, items];
 }
 
+// One habit as a status row ("Done" / "To do" / "Skipped"); the sub line carries the streak and the missed flag.
 function habitRow(act, hb) {
   const flagText = hb.status ? null : hb.flag === 'red' ? 'missed twice' : hb.flag === 'warn' ? 'missed yesterday' : null;
-  const statusText = hb.status === 'done' ? 'done' : hb.status === 'skipped' ? 'skipped' : null;
   const streakText = hb.streak > 0 ? (hb.status === 'done' ? `streak ${hb.streak}` : `${hb.streak}d`) : null;
-  const sub = [statusText, streakText].filter(Boolean).join(' · ');
-  const mark = hb.status === 'done' ? '✓' : hb.status === 'skipped' ? '–' : '';
-  const el = h('button', {
-    type: 'button', class: `tap habit${hb.status ? ` is-${hb.status}` : ''}`, 'aria-label': hb.ariaLabel,
-  },
-  h('span', { class: 'hbody' },
-    h('span', { class: 'ellip hname' }, hb.text),
-    sub || flagText
-      ? h('span', { class: 'hsub' },
-        sub ? h('span', { class: 'num' }, sub) : null,
-        flagText ? h('span', { class: hb.flag === 'red' ? 'danger' : '' }, flagText) : null)
-      : null),
-  h('span', { class: `hmark${hb.status ? ` is-${hb.status}` : ''}`, 'aria-hidden': 'true' }, mark));
+  const sub = flagText && hb.flag === 'red'
+    ? [streakText ? `${streakText} · ` : null, h('span', { class: 'danger' }, flagText)]
+    : [streakText, flagText].filter(Boolean).join(' · ') || null;
+  const el = statusRow({ label: hb.text, status: hb.status ?? 'todo', sub, ariaLabel: hb.ariaLabel, button: true });
   return holdTap(el,
     () => act.setHabit(hb.id, nextStatus(hb.status, 'tap')),
     () => act.setHabit(hb.id, nextStatus(hb.status, 'hold')));
@@ -403,48 +393,48 @@ export function renderToday(root, app) {
   const animate = ui.ringDay !== app.todayKey;
   ui.ringDay = app.todayKey;
 
-  const tiles = h('div', { class: 'tiles' },
-    tile({
-      label: 'HABITS', value: parts.H ? `${parts.H.done}/${parts.H.counted}` : '–', bar: parts.H ? parts.H.done / parts.H.counted : 0,
+  const habitsLabel = parts.H ? `${parts.H.done} of ${parts.H.counted}` : null;
+  const metricItems = [
+    {
+      key: 'habits', label: 'Habits', value: habitsLabel ?? '–', progress: parts.H ? parts.H.done / parts.H.counted : 0,
       ariaLabel: parts.H ? `Habits, ${parts.H.done} of ${parts.H.counted} done, show list` : 'Habits, none due today, show list',
       onClick: () => { const el = document.getElementById('today-habits'); el?.scrollIntoView?.({ block: 'start' }); el?.focus?.({ preventScroll: true }); },
-    }),
-    tile({
-      label: 'WATER', value: fmtL(m.water.total), unit: 'L', bar: m.water.total / m.water.target, expanded: ui.waterOpen,
+    },
+    {
+      key: 'water', label: 'Water', value: fmtL(m.water.total), unit: 'L', progress: m.water.total / m.water.target, expanded: ui.waterOpen,
       ariaLabel: `Water, ${fmtL(m.water.total)} of ${fmtL(m.water.target)} liters, add water`,
       onClick: () => { ui.waterOpen = !ui.waterOpen; ui.waterCustom = false; ui.sleepOpen = false; ui.sleepEdit = false; ui.notice = ''; app.rerender(); },
-    }),
-    tile({
-      label: 'SLEEP', value: m.sleep.logged ? formatDuration(m.sleep.minutes) : 'Log', bar: m.sleep.logged ? m.sleep.minutes / SLEEP_GOAL_MIN : 0, expanded: ui.sleepOpen,
+    },
+    {
+      key: 'sleep', label: 'Sleep', value: m.sleep.logged ? formatDuration(m.sleep.minutes) : 'Log', progress: m.sleep.logged ? m.sleep.minutes / SLEEP_GOAL_MIN : 0, expanded: ui.sleepOpen,
       ariaLabel: m.sleep.logged ? `Sleep, ${formatDuration(m.sleep.minutes)}, edit` : 'Sleep, not logged, log sleep',
       onClick: () => { ui.sleepOpen = !ui.sleepOpen; ui.sleepEdit = false; ui.waterOpen = false; ui.waterCustom = false; ui.notice = ''; app.rerender(); },
-    }));
+    },
+    nextMetric(m, now),
+  ].filter(Boolean);
 
   const habitsBlock = m.habits.length
-    ? h('div', { class: 'habits' }, m.habits.map((hb) => habitRow(act, hb)))
+    ? list(m.habits.map((hb) => habitRow(act, hb)))
     : h('p', { class: 'muted tempty' }, 'Add your habits in More.');
+  const habitsSec = section({ title: 'Habits', count: habitsLabel, id: 'today-habits', aside: h('span', { class: 'muted' }, 'tap done, hold skip') }, habitsBlock);
+  habitsSec.setAttribute('tabindex', '-1');
 
-  const todayItems = [
-    m.nowNext.length ? h('div', { class: 'tgroup', 'aria-label': 'Now and next', role: 'group' }, nowNextRows(m, now)) : null,
-    m.rituals.length ? h('div', { class: 'tgroup', 'aria-label': 'Today’s ritual', role: 'group' }, m.rituals.map((e) => ritualBlock(app, act, e))) : null,
-    noticeLine('today'),
-  ];
+  const todayNotice = noticeLine('today');
+  const todaySec = m.rituals.length || todayNotice
+    ? section({ title: 'Today' }, m.rituals.length ? list(m.rituals.map((e) => ritualBlock(app, act, e))) : null, todayNotice)
+    : null;
 
   root.replaceChildren(
     h('div', { class: 'today' },
       h('header', { class: 'thead' }, h('h1', {}, m.dayLabel)),
       h('section', { class: 'tring', 'aria-label': 'Day score' },
-        ring({ value0to1: score / 100, label: 'DAY SCORE', ariaLabel: `Day score ${score} of 100`, good: m.dayScore.good, animate })),
-      tiles,
+        scoreBlock({ value: score, label: 'Day score', ariaLabel: `Day score ${score} of 100`, good: m.dayScore.good, animate })),
+      metrics(metricItems),
       ui.waterOpen ? waterPanel(app, act, m) : null,
       ui.sleepOpen ? sleepPanel(app, act, m) : null,
       noticeLine('top'),
-      h('section', { class: 'tsec', id: 'today-habits', tabindex: '-1', 'aria-label': 'Habits' },
-        h('div', { class: 'thint' }, h('span', { class: 'cap' }, 'Habits'), h('span', { class: 'muted' }, 'tap done, hold skip')),
-        habitsBlock),
-      h('section', { class: 'tsec', 'aria-label': 'Today' },
-        h('div', { class: 'thint' }, h('span', { class: 'cap' }, 'Today')),
-        todayItems),
+      habitsSec,
+      todaySec,
       h('p', { class: 'muted tfoot' }, weekLineText(m.week)),
       startDock(app, act, m.gymCard, clockNode)),
   );

@@ -132,8 +132,8 @@ export function renderHistory(root, app, id) {
     m.inProgress ? h('p', { class: 'muted' }, 'In progress. ', h('a', { href: '#/workout' }, 'Open the workout')) : null,
     m.note ? h('p', { class: 'hv-note', lang: '' }, m.note) : null,
     m.exercises.length
-      ? m.exercises.map((e) => h('section', { class: 'gsec hv-ex', 'aria-label': e.name },
-        h('h2', { class: 'hv-exname', lang: '' }, e.exerciseId && (app.snapshot.exercises ?? []).some((x) => x.id === e.exerciseId)
+      ? m.exercises.map((e) => h('section', { class: 'blk-sec hv-ex', 'aria-label': e.name },
+        h('h2', { class: 'sec-title hv-exname', lang: '' }, e.exerciseId && (app.snapshot.exercises ?? []).some((x) => x.id === e.exerciseId)
           ? h('a', { href: `#/exercise/${encodeURIComponent(e.exerciseId)}` }, e.name) : e.name),
         e.note ? h('p', { class: 'hv-note muted', lang: '' }, e.note) : null,
         e.sets.length

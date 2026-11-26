@@ -65,6 +65,8 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const kgText = (v) => (v == null ? '' : String(v));
 const TYPED_NAMES = { warmup: 'Warm-up set', dropset: 'Drop set', failure: 'Failure set' };
 const ariaNameOf = (r) => TYPED_NAMES[r.type] ?? `Set ${r.label}`;
+// The set table keeps its check button (readability exemption): ✓ done, ○ to do; the button's aria-label says it in words.
+const tickGlyph = (done) => (done ? '✓' : '○');
 
 export function renderWorkout(root, app, hooks = {}) {
   const clock = hooks.now ?? (() => new Date());
@@ -163,6 +165,7 @@ export function renderWorkout(root, app, hooks = {}) {
     num.setAttribute('aria-label', `${name}, change type`);
     el.querySelector('.wk-prev').textContent = r.prev;
     const tick = el.querySelector('.wk-tick');
+    tick.querySelector('.wk-check').textContent = tickGlyph(r.done);
     tick.setAttribute('aria-pressed', String(r.done));
     tick.setAttribute('aria-label', `${name} done`);
     tick.classList.toggle('is-blocked', !r.canTick && !r.done);
@@ -222,6 +225,7 @@ export function renderWorkout(root, app, hooks = {}) {
       // Optimistic: paint the tick now, reconcile when the reducer answers.
       rowEl.classList.toggle('is-done', !wasDone);
       rowEl.classList.remove('is-faint');
+      tickEl.querySelector('.wk-check').textContent = tickGlyph(!wasDone);
       tickEl.setAttribute('aria-pressed', String(!wasDone));
       if (!wasDone) { rowEl.classList.remove('is-pop'); void rowEl.offsetWidth; rowEl.classList.add('is-pop'); }
     }
@@ -285,7 +289,7 @@ export function renderWorkout(root, app, hooks = {}) {
       onTap: (e) => { if (opensTypePicker('tap', e.pointerType)) openTypePicker(weId, r.setId, num); },
     }).cancel);
     const tick = h('button', { type: 'button', class: 'tap wk-tick', 'aria-pressed': 'false', onClick: (e) => onTick(weId, r.setId, e.currentTarget) },
-      h('span', { class: 'wk-check', 'aria-hidden': 'true' }, '✓'));
+      h('span', { class: 'wk-check', 'aria-hidden': 'true' }, tickGlyph(r.done)));
     const row = h('div', { class: 'wk-row', role: 'group', 'data-set': r.setId },
       num, h('span', { class: 'wk-prev muted' }), input('kg', 'decimal', r.kg), input('reps', 'numeric', r.reps), tick);
     paintRow(row, r);
@@ -359,7 +363,7 @@ export function renderWorkout(root, app, hooks = {}) {
     removeBtns.set(ex.weId, removeBtn);
     return h('section', { class: 'wk-ex is-open', 'aria-label': ex.name },
       h('div', { class: 'wk-exhead' },
-        h('h2', { class: 'wk-exname', lang: '' }, ex.name),
+        h('h2', { class: 'sec-title wk-exname', lang: '' }, ex.name),
         h('button', { type: 'button', class: 'tap wk-menu', 'data-menu': ex.weId, 'aria-label': `${ex.name} options`, 'aria-haspopup': 'dialog',
           onClick: () => openExerciseMenu(ex.weId) }, '⋯')),
       meta ? h('p', { class: 'wk-exmeta muted' }, meta) : null,

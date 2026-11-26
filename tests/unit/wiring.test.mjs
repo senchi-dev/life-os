@@ -57,6 +57,14 @@ test('theme is read at boot and applied', () => {
   assert.match(src, /themeColor\(/);
 });
 
+test('layout is read at boot and applied before the first render', () => {
+  assert.match(src, /readLayout\(/);
+  assert.match(src, /applyLayout\(document\.documentElement/);
+  const apply = src.search(/applyLayout\(document\.documentElement/);
+  const render = src.indexOf('rerender(');
+  assert.ok(render >= 0 && apply < render, 'layout applied before the first rerender(');
+});
+
 test('rerender mounts views through mountView and sets body[data-route]', () => {
   const b = body('rerender');
   assert.match(b, /mountView\(/);
@@ -125,6 +133,14 @@ test('toLogin clears gym state and the outbox only inside the clear branch', () 
   assert.match(branch, /app\.gym\.clearAll\(\)/);
   assert.match(branch, /outbox\.clear\(\)/);
   assert.equal((b.match(/clearAll\(\)/g) ?? []).length, 1, 'no clearAll outside the clear branch');
+});
+
+test('toLogin clear branch resets the calendar', () => {
+  const b = body('async toLogin');
+  const at = b.indexOf('if (clear)');
+  assert.ok(at >= 0, 'clear branch');
+  const branch = b.slice(at, b.indexOf('}', b.indexOf('{', at)) + 1);
+  assert.match(branch, /resetCalendar\(\)/);
 });
 
 test('VIEWS maps the gym, workout and exercise routes to their views', () => {

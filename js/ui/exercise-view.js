@@ -1,6 +1,7 @@
 // Exercise screen (#/exercise/<id>): name, Edit, HISTORY in pages of 20 (sets fetched per page), HOW TO.
 // Chart, 1RM and PR summary are phase 2b. Async work records into module state, then app.rerender() repaints once.
 import { h } from './dom.js';
+import { section } from './blocks.js';
 import { loadingNodes } from './loading.js';
 import { fetchSetsFor } from '../data/gym-repo.js';
 import { exerciseHistoryPage, historyLine, setsForSession, HISTORY_PAGE } from './history-model.js';
@@ -116,8 +117,8 @@ export function renderExercise(root, app) {
       h('button', { type: 'button', class: 'tap chip', 'data-ex': ex.id, 'aria-label': `Edit ${ex.name}`, onClick: () => openExerciseSheet(app, act, ex) }, '⋯ Edit')),
     h('p', { class: 'muted' }, [ex.muscle_group, ex.equipment].filter(Boolean).map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' · ')),
     act.ui.notice ? h('p', { class: `tnotice${act.ui.notice === 'Saved.' ? ' muted' : ' danger'}`, role: 'status' }, act.ui.notice) : null,
-    h('section', { class: 'gsec', 'aria-label': 'History' }, h('div', { class: 'ghead' }, h('h2', { class: 'cap' }, 'History')), history),
-    h('section', { class: 'gsec', 'aria-label': 'How to' }, h('div', { class: 'ghead' }, h('h2', { class: 'cap' }, 'How to')),
+    section({ title: 'History' }, history),
+    section({ title: 'How to' },
       ex.how_to && String(ex.how_to).trim()
         ? h('p', { class: 'hv-howto', lang: '' }, ex.how_to)
         : h('p', { class: 'muted' }, 'No how-to yet. Add one with Edit.'))));

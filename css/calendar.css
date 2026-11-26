@@ -1,0 +1,125 @@
+/* Calendar views (phase 2c): switcher, legend, Agenda rows, Day timeline, Week and Month grids.
+   Colours: gym --cal-gym, events --cal-event, rituals --cal-ritual. Geometry (top/height/left/width) is set from JS
+   with style.setProperty; nothing here below 13px. */
+
+.cal-switch { margin: 0 0 var(--s2); }
+.cal-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1); margin: 0 0 var(--s4); font-size: var(--fs-s); color: var(--muted); }
+.cal-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 2px; }
+.cal-sw.is-gym { background: var(--cal-gym); }
+.cal-sw.is-event { background: var(--cal-event); }
+.cal-sw.is-ritual { background: var(--cal-ritual); }
+.cal-status { margin: 0 0 var(--s2); }
+
+/* Agenda: section per day, rows with a divider, time column, colour bar on the left. */
+.cal .blk-list > .citem {
+  min-height: 48px; margin: 0; padding: var(--s2) var(--s4) var(--s2) calc(var(--s4) - 3px);
+  border: 0; border-top: 1px solid var(--line); border-left: 3px solid transparent; border-radius: 0;
+  align-items: center; color: var(--fg); font-size: var(--fs-m); line-height: 1.35;
+}
+.cal .blk-list > .citem:first-child { border-top: 0; }
+.cal .blk-list > .citem.is-gym { border-left-color: var(--cal-gym); }
+.cal .blk-list > .citem.is-event { border-left-color: var(--cal-event); }
+.cal .blk-list > .citem.is-ritual { border-left-color: var(--cal-ritual); color: var(--muted); }
+.cal .blk-list > .citem .ctime { width: 4.5rem; font-variant-numeric: tabular-nums; }
+.cal .blk-sec > .cempty { margin: 0 0 var(--s3); }
+
+/* Navigation: ‹ title › ; the title returns to today. */
+.cal-nav { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s2); }
+.cal-nav button.tap { border: 0; background: transparent; color: var(--fg); cursor: pointer; }
+.cal-step { flex: none; font-size: var(--fs-l); }
+.cal-title { flex: 1; min-width: 0; font-size: var(--fs-sec); font-weight: 500; }
+
+/* Chips: the Day view all-day strip. */
+.cal-allday { display: flex; flex-direction: column; gap: var(--s1); margin: 0 0 var(--s2); }
+.cal-view .cal-chip {
+  display: flex; align-items: center; justify-content: flex-start; gap: var(--s3); width: 100%; min-height: 44px;
+  padding: 0 var(--s3); border: 0; border-left: 3px solid transparent; border-radius: var(--r-s);
+  background: var(--surface); color: var(--fg); font-size: var(--fs-s); text-align: left; text-decoration: none;
+}
+.cal-view .cal-chip.is-gym { border-left-color: var(--cal-gym); }
+.cal-view .cal-chip.is-event { border-left-color: var(--cal-event); }
+.cal-view .cal-chip.is-ritual { border-left-color: var(--cal-ritual); }
+.cal-view .cal-chip.is-planned, .cal-view .cal-chip.is-ritual { color: var(--muted); }
+.cal-view .cal-chip.is-selected { color: var(--accent); font-weight: 600; }
+
+/* Day timeline: hour lines in a scroll box, blocks absolutely placed in the column area right of the hour labels. */
+.cal-scroll { max-height: 55vh; max-height: 55dvh; overflow-y: auto; border: 1px solid var(--card-line); border-radius: var(--r-m); background: var(--surface); }
+.cal-tl { position: relative; }
+.cal-hour { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--line); }
+.cal-hourlabel { position: absolute; left: var(--s2); top: 2px; font-size: var(--fs-s); color: var(--muted); }
+.cal-cols { position: absolute; top: 0; bottom: 0; left: 3.5rem; right: var(--s2); }
+.cal-view .cal-block {
+  position: absolute; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 0;
+  min-width: 0; min-height: 0; overflow: hidden; padding: 2px var(--s1) 0 var(--s2); margin: 0;
+  border: 0; border-left: 3px solid transparent; border-radius: 6px; background: var(--surface-2);
+  color: var(--fg); font-size: var(--fs-s); line-height: 1.25; text-align: left; text-decoration: none; cursor: pointer;
+}
+.cal-view .cal-block.is-gym { border-left-color: var(--cal-gym); }
+.cal-view .cal-block.is-event { border-left-color: var(--cal-event); }
+.cal-view .cal-block.is-ritual { border-left-color: var(--cal-ritual); cursor: default; }
+.cal-view .cal-block.is-selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal-btime { color: var(--muted); font-variant-numeric: tabular-nums; }
+.cal-btitle { max-width: 100%; }
+.cal-now { position: absolute; left: 3rem; right: 0; height: 0; border-top: 2px solid var(--danger); pointer-events: none; }
+
+/* Week: hour gutter + 7 day columns. Each column is one button (opens Day view): head, all-day labels, timeline.
+   --wk-allday (rows) is set from JS so every column's all-day area has the same height and the timelines line up.
+   Blocks are plain coloured bars; the start time shows only when the column is >= 64px wide. */
+.cal-wbody { display: flex; align-items: flex-start; gap: 2px; }
+.cal-wside { flex: none; width: 2.5rem; display: flex; flex-direction: column; }
+.cal-whead { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 44px; line-height: 1.2; }
+.cal-wname { font-size: var(--fs-s); color: var(--muted); }
+.cal-wnum { font-size: var(--fs-m); }
+.cal-wallday { display: flex; flex-direction: column; gap: 2px; height: calc(var(--wk-allday, 0) * 22px); margin: 0 0 2px; overflow: hidden; }
+.cal-wchip {
+  display: block; flex: none; height: 20px; padding: 0 2px; border-left: 3px solid transparent;
+  background: var(--surface-2); color: var(--fg); font-size: var(--fs-s); line-height: 20px; text-align: left;
+}
+.cal-wchip.is-gym { border-left-color: var(--cal-gym); }
+.cal-wchip.is-event { border-left-color: var(--cal-event); }
+.cal-wchip.is-ritual { border-left-color: var(--cal-ritual); }
+.cal-wchip.is-planned, .cal-wchip.is-ritual { color: var(--muted); }
+.cal-wtl { position: relative; }
+.cal-wgutter .cal-hourlabel { left: 0; margin-top: 2px; }
+button.tap.cal-wcol {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+  padding: 0; border: 0; border-radius: var(--r-s); box-shadow: inset 0 0 0 1px var(--card-line);
+  background: var(--surface); color: var(--fg); overflow: hidden; container-type: inline-size;
+}
+button.tap.cal-wcol.is-today { box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-wcol.is-today .cal-whead, .cal-wcol.is-today .cal-wname { color: var(--accent); font-weight: 600; }
+.cal-wcol .cal-wtl { background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px 48px); }
+.cal-wblock { position: absolute; display: block; overflow: hidden; border-radius: 3px; box-shadow: 0 0 0 1px var(--surface); background: var(--cal-event); }
+.cal-wblock.is-gym { background: var(--cal-gym); }
+.cal-wblock.is-ritual { background: var(--cal-ritual); }
+.cal-wblock .cal-btime { display: none; }
+@container (min-width: 64px) {
+  .cal-wblock .cal-btime { display: block; padding: 1px 3px; font-size: 13px; line-height: 1.2; color: var(--bg); }
+}
+
+/* Month: Monday-first grid, one dot per kind, the selected day's Agenda rows below. */
+.cal-mhead, .cal-mweek { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.cal-mhead { margin: 0 0 var(--s1); font-size: var(--fs-s); color: var(--muted); text-align: center; }
+.cal-mgrid { display: flex; flex-direction: column; gap: 2px; margin: 0 0 var(--s4); }
+button.tap.cal-mday {
+  min-width: 0; min-height: 48px; padding: var(--s1) 0; flex-direction: column; justify-content: flex-start; gap: var(--s1);
+  background: var(--surface); color: var(--fg);
+}
+button.tap.cal-mday.is-out { background: transparent; color: var(--muted); }
+button.tap.cal-mday.is-selected { border-color: var(--accent); }
+.cal-mday.is-today .cal-mnum { color: var(--accent); font-weight: 700; }
+.cal-mnum { font-size: var(--fs-m); line-height: 1.2; }
+.cal-mdots { display: flex; gap: 3px; height: 6px; }
+.cal-dot { width: 6px; height: 6px; border-radius: 50%; }
+.cal-dot.is-gym { background: var(--cal-gym); }
+.cal-dot.is-event { background: var(--cal-event); }
+.cal-dot.is-ritual { background: var(--cal-ritual); }
+
+/* Big type: Agenda rows follow the layout like .blk-row (20-22px, 56px rows). */
+[data-layout="big"] .cal .blk-list > .citem { font-size: var(--fs-big); min-height: 56px; padding-top: var(--s4); padding-bottom: var(--s4); }
+[data-layout="big"] .cal .blk-list > .citem .ctime { font-size: var(--fs-m); width: 5.5rem; }
+
+/* Quick add collapsed behind a secondary button at the bottom; the form opens on tap or when an event is selected. */
+.cal-addarea { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s4); }
+.cal-addarea .cnotice { margin: 0; }
+button.tap.cal-addbtn { width: 100%; min-height: 44px; color: var(--accent); font-weight: 600; }

@@ -15,8 +15,9 @@
   --accent-ink: #03140a;
   --accent-tint: rgba(47,210,122,.12);
   --danger: #ff6b5e;
-  --fs-label: 0.75rem; --fs-s: 0.8125rem; --fs-m: 1rem; --fs-l: 1.25rem; --fs-xl: 1.75rem;
-  --fs-display: 3.5rem; --fs-clock: 2.75rem;
+  --cal-gym: #2fd27a; --cal-event: #5aa9ff; --cal-ritual: #f2b33d;
+  --fs-label: 0.8125rem; --fs-s: 0.8125rem; --fs-m: 1rem; --fs-l: 1.25rem; --fs-xl: 1.75rem;
+  --fs-display: 3.5rem; --fs-clock: 2.75rem; --fs-sec: 0.9375rem; --fs-big: 1.3125rem;
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
   --r-s: 8px; --r-m: 14px; --r-pill: 999px;
   --tabbar-h: 56px;
@@ -36,6 +37,7 @@
   --accent-ink: #ffffff;
   --accent-tint: rgba(10,114,57,.10);
   --danger: #c0392b;
+  --cal-gym: #0a7239; --cal-event: #1f63c4; --cal-ritual: #9a5b00;
   color-scheme: light;
 }
 @media (prefers-color-scheme: light) {
@@ -52,6 +54,7 @@
     --accent-ink: #ffffff;
     --accent-tint: rgba(10,114,57,.10);
     --danger: #c0392b;
+    --cal-gym: #0a7239; --cal-event: #1f63c4; --cal-ritual: #9a5b00;
     color-scheme: light;
   }
 }
@@ -75,6 +78,7 @@ main {
   max-width: 40rem;
   margin: 0 auto;
   padding: var(--s5) var(--s4) calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--s5));
+  font-size: var(--fs-m);
   outline: none;
 }
 h1 { font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 var(--s4); }
@@ -87,7 +91,9 @@ hr, .rule { border: 0; border-top: 1px solid var(--line); margin: var(--s4) 0; }
 
 /* Shared building blocks */
 .card { background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-m); padding: var(--s4); margin: 0 0 var(--s3); }
-.label, .cap { font-size: var(--fs-label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+/* Readability baseline: 13px floor; .cap is sentence case until screens move to .sec-title. */
+.label, .cap { font-size: var(--fs-label); font-weight: 500; color: var(--muted); }
+.label { text-transform: uppercase; letter-spacing: 0.07em; }
 .num-display { font-size: var(--fs-display); font-weight: 600; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
 .row-list { list-style: none; margin: 0; padding: 0; }
 .row-list > * { display: flex; align-items: center; gap: var(--s3); min-height: 48px; border-top: 1px solid var(--line); }
@@ -335,7 +341,7 @@ button.cadd { min-height: 44px; min-width: 64px; }
 .cnotice { margin: 0; font-size: var(--fs-s); }
 button.cdelete { align-self: flex-start; min-height: 44px; color: var(--danger); }
 
-/* Review. Each block is a card led by a display numeral. */
+/* Review. Numbers, habits and health are layout blocks (css/layouts.css); last week's change and the notes are cards. */
 main[data-view="review"] { padding-top: var(--s4); }
 .rhead { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
 .rhead h1 { margin: 0; min-width: 0; font-size: var(--fs-l); }
@@ -343,16 +349,14 @@ main[data-view="review"] { padding-top: var(--s4); }
 button.rstep { padding: 0; font-size: var(--fs-l); line-height: 1; }
 button.rstep:disabled { opacity: 0.35; cursor: default; }
 .rrange { margin: var(--s1) 0 var(--s4); }
-.rnums { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2); margin-bottom: var(--s3); }
+/* .rnum no longer used by Review; still matches the routine editor's number inputs (routine-view.js), kept as is. */
 .rnum { background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-m); padding: var(--s3); min-width: 0; display: flex; flex-direction: column; gap: var(--s2); }
-.rnum .num-display { font-size: var(--fs-xl); }
 .review .tsec { background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-m); padding: var(--s4); margin-bottom: var(--s3); }
-.review .tsec > .cap { margin-bottom: var(--s2); }
-.rrow { display: flex; gap: var(--s2); min-height: 44px; align-items: center; }
-.rlabel { flex: 1; min-width: 0; }
-.rval { flex: none; font-weight: 600; }
-.rsub { flex: none; min-width: 5.5rem; text-align: right; }
-.rflags { margin: 0 0 var(--s2); font-size: var(--fs-s); }
+.review .blk-sec { margin: 0 0 var(--s3); }
+/* A habit's misses sit under its row, inside the list, aligned with the row text. */
+.blk-list > .rflags { margin: 0; padding: 0 var(--s4) var(--s2); font-size: var(--fs-s); }
+[data-layout="big"] .blk-list > .rflags { padding: 0 0 var(--s3); font-size: var(--fs-m); }
+.review .tempty { margin: 0 0 var(--s3); }
 .rchange { margin: var(--s1) 0 var(--s2); }
 .rkept { display: flex; align-items: center; gap: var(--s2); }
 .rkept .chip { min-width: 56px; }
@@ -363,12 +367,10 @@ textarea.rarea { width: 100%; min-height: 96px; padding: var(--s2) var(--s4); li
 /* More. Grouped list rows (settings style); forms open in place. */
 main[data-view="more"] { padding-top: var(--s4); }
 .more .msec { background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-m); padding: 0 var(--s4); margin-bottom: var(--s2); }
-button.mhead {
-  display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: 52px;
-  background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; font-weight: 600;
-}
-.mchev { color: var(--muted); font-weight: 400; transition: transform var(--ease); }
-.is-open > .mhead .mchev { transform: rotate(90deg); }
+/* Section heads and gym links are .blk-row (css/layouts.css); the card already gives the side padding. */
+.more .msec > .blk-row { padding-left: 0; padding-right: 0; }
+.mchev { flex: none; color: var(--muted); font-weight: 400; transition: transform var(--ease); }
+.is-open > .blk-row .mchev { transform: rotate(90deg); }
 .mbody { padding-bottom: var(--s4); }
 .mform { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s1) 0; }
 .mform-in { padding-top: var(--s3); }
@@ -398,8 +400,9 @@ button.madd { margin-top: var(--s2); }
 .mlist { margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: var(--s2); }
 .mhidden { display: none; }
 button.tap:disabled { opacity: 0.5; cursor: default; }
-.mtheme { padding-top: var(--s3); padding-bottom: var(--s3); }
-.mtheme-label { margin-bottom: var(--s2); }
+.mappear { display: flex; flex-direction: column; gap: var(--s3); padding-top: var(--s3); padding-bottom: var(--s3); }
+.mappear-title { font-size: 15px; font-weight: 500; margin: 0; }
+.mappear-label { font-size: var(--fs-s); color: var(--muted); margin-bottom: var(--s2); }
 
 /* More: Import from Strive. Same tokens as the other More forms; every control is at least 44px tall. */
 .mimport { display: flex; flex-direction: column; gap: var(--s3); }

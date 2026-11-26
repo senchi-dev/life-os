@@ -1,0 +1,65 @@
+/* Layouts (phase 2c). Shared blocks rendered by the screen helpers; <html data-layout="list|tiles|big">
+   (js/lib/layout.js) only changes presentation. Baseline: text >= 13px, rows >= 44px with a divider,
+   numbers tabular and right-aligned, nothing wider than a 320px screen. */
+
+/* Section heading: sentence case, 15px / 500, optional "Title · N" count. */
+.sec-title { font-size: var(--fs-sec); font-weight: 500; line-height: 1.3; color: var(--fg); margin: 0 0 var(--s2); min-width: 0; }
+.blk-sec { margin: var(--s5) 0 0; min-width: 0; }
+.blk-sec:first-child { margin-top: 0; }
+.blk-sec[tabindex="-1"]:focus { outline: none; } /* focused by a "show list" metric, not by the user */
+.blk-sec > .thead > .sec-title { margin: 0; }
+
+/* Clean list (default): grouped rounded list, label left, value or status right. */
+.blk-list { display: flex; flex-direction: column; margin: 0 0 var(--s3); padding: 0; list-style: none; min-width: 0; background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-m); overflow: hidden; }
+.blk-row, button.tap.blk-row {
+  display: flex; align-items: center; gap: var(--s3); width: 100%; min-width: 0; min-height: 48px;
+  margin: 0; padding: var(--s2) var(--s4); border: 0; border-top: 1px solid var(--line); border-radius: 0;
+  background: transparent; color: var(--fg); font-size: var(--fs-m); line-height: 1.35; text-align: left; text-decoration: none;
+}
+.blk-row:first-child, button.tap.blk-row:first-child { border-top: 0; }
+.blk-row > .ellip { flex: 1 1 auto; }
+/* With a sub line the label sits in .grow; it must be a block box to truncate with an ellipsis. */
+.blk-row > .grow { min-width: 0; overflow: hidden; }
+.blk-row .grow > .ellip { display: block; }
+/* A ritual's checklist opens inside the list: its rows get the same padding, height and dividers as .blk-row. */
+.blk-list > .tchecks { padding: 0; }
+.blk-list > .tchecks > button.tcheck {
+  align-items: center; min-height: 48px; padding: var(--s2) var(--s4); border-top: 1px solid var(--line);
+  font-size: var(--fs-m); line-height: 1.35;
+}
+.blk-val { flex: none; margin-left: auto; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); }
+.blk-sub { display: block; font-size: var(--fs-s); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.blk-status { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: var(--s1); font-size: var(--fs-s); font-weight: 500; color: var(--muted); white-space: nowrap; }
+.blk-status.is-done { color: var(--accent); }
+.blk-status.is-todo { color: var(--muted); }
+.blk-status.is-skipped { color: var(--faint); }
+
+/* Tiles: metric items as a 2-column grid (big number + thin bar). Lists of things stay .blk-list rows.
+   Only rendered in the tiles layout, so the grid is not scoped by [data-layout]. */
+.blk-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); margin: 0 0 var(--s3); min-width: 0; }
+.blk-tile, button.tap.blk-tile {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: var(--s2);
+  min-width: 0; min-height: 88px; margin: 0; padding: var(--s3) var(--s4);
+  background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-m);
+  color: var(--muted); font-size: var(--fs-s); font-weight: 500; text-align: left; text-decoration: none;
+}
+.blk-tile .blk-val { margin-left: 0; max-width: 100%; text-align: left; font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; color: var(--fg); }
+.blk-tile .bar { height: 3px; margin-top: auto; }
+
+/* Big type: one item per line, 20-22px rows, generous spacing, no card chrome. */
+[data-layout="big"] .blk-list, .blk-list.blk-big { background: transparent; border: 0; border-radius: 0; }
+[data-layout="big"] .blk-row, [data-layout="big"] button.tap.blk-row { font-size: var(--fs-big); min-height: 56px; padding: var(--s4) 0; }
+[data-layout="big"] .blk-sub, [data-layout="big"] .blk-status { font-size: var(--fs-m); }
+[data-layout="big"] .blk-list > .tchecks > button.tcheck { font-size: var(--fs-big); min-height: 56px; padding: var(--s4) 0; }
+[data-layout="big"] .blk-sec { margin-top: var(--s6); }
+
+/* Workout set table (exemption): the ✓ / ○ button, 16px numbers, 44px rows and the one 5-column grid stay in
+   every layout. Big type and tiles only change the spacing around it, so 320px still fits without scrolling. */
+[data-layout="big"] .wk-ex.is-open { padding: var(--s5) 0; }
+[data-layout="big"] .wk-rows { display: flex; flex-direction: column; gap: var(--s1); }
+[data-layout="big"] .wk-foot { margin-top: var(--s3); }
+[data-layout="tiles"] .wk-ex.is-open { padding: var(--s4) 0; }
+[data-layout="tiles"] .wk-rows { display: flex; flex-direction: column; gap: 2px; }
+.blk-score { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s2); margin: var(--s4) 0; }
+.blk-score-num { font-size: var(--fs-display); font-weight: 600; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--fg); }
+.blk-score-cap { font-size: var(--fs-m); font-weight: 500; line-height: 1.3; color: var(--muted); }

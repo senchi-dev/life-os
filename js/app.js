@@ -17,7 +17,7 @@ import { h } from './ui/dom.js';
 import { localDateKey } from './lib/dates.js';
 import { renderMore, resetMore } from './ui/more-view.js';
 import { renderReview } from './ui/review-view.js';
-import { renderCalendar } from './ui/calendar-view.js';
+import { renderCalendar, resetCalendar } from './ui/calendar-view.js';
 import { renderToday } from './ui/today-view.js';
 import { renderGym } from './ui/gym-view.js';
 import { renderExercise } from './ui/exercise-view.js';
@@ -27,6 +27,7 @@ import { createTicker } from './lib/ticker.js';
 import { createGymRuntime } from './lib/gym-runtime.js';
 import { refreshSnapshot, clearSnapshotCache } from './lib/snapshot-cache.js';
 import { readTheme, applyTheme, themeColor, applyThemeColor, currentTheme, watchSystemTheme } from './lib/theme.js';
+import { readLayout, applyLayout } from './lib/layout.js';
 
 const ROUTES = ['today', 'gym', 'workout', 'exercise', 'calendar', 'review', 'more'];
 const VIEWS = {
@@ -114,6 +115,7 @@ async function start(root, setBanner) {
   try { themeStore = localStorage; } catch { /* storage blocked: default theme */ }
   const theme = readTheme(themeStore);
   applyTheme(document.documentElement, theme);
+  applyLayout(document.documentElement, readLayout(themeStore));
   const lightMq = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: light)') : null;
   applyThemeColor(document, themeColor(theme, !!lightMq?.matches));
   watchSystemTheme(lightMq, () => currentTheme(document.documentElement, themeStore), (c) => applyThemeColor(document, c));
@@ -286,6 +288,7 @@ async function start(root, setBanner) {
       if (clear) {
         // Queue, gym state and the offline snapshot copy go together; one failing must not leave the others behind.
         await Promise.allSettled([outbox.clear(), app.gym.clearAll(), clearSnapshotCache(kv)]);
+        resetCalendar(); // fetched events and the open draft belong to the signed-out user
       }
       renderAuth(root, { client, onSignedIn: (session) => enqueue(() => (authGate('SIGNED_IN', session) === 'app' ? app.toApp(session) : undefined)) });
     },

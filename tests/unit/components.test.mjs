@@ -1,34 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-// Minimal fake DOM: enough for h(), SVG elements, document.body, focus and remove().
-class FakeNode {}
-class FakeEl extends FakeNode {
-  constructor(tag) {
-    super(); this.tag = tag; this.attrs = {}; this.listeners = {}; this.kids = []; this.className = ''; this.parent = null;
-    this.styleMap = {}; this.style = { setProperty: (k, v) => { this.styleMap[k] = v; } };
-  }
-  setAttribute(k, v) { this.attrs[k] = v; }
-  getAttribute(k) { return this.attrs[k] ?? null; }
-  addEventListener(t, fn) { (this.listeners[t] ??= []).push(fn); }
-  append(...n) { for (const c of n) { if (c instanceof FakeEl) c.parent = this; this.kids.push(c); } }
-  remove() { if (this.parent) this.parent.kids = this.parent.kids.filter((k) => k !== this); this.parent = null; }
-  focus() { globalThis.document.activeElement = this; }
-  querySelectorAll() { return []; }
-}
-class FakeText extends FakeNode { constructor(t) { super(); this.text = t; } }
-const body = new FakeEl('body');
-globalThis.Node = FakeNode;
-globalThis.document = {
-  body, activeElement: null,
-  createElement: (t) => new FakeEl(t),
-  createElementNS: (ns, t) => { const e = new FakeEl(t); e.ns = ns; return e; },
-  createTextNode: (t) => new FakeText(t),
-};
+import { installFakeDom, text, all, byClass as cls } from './fixtures/fake-dom.mjs';
+
+const { body, FakeEl } = installFakeDom();
 const C = await import('../../js/ui/components.js');
-const text = (n) => (n instanceof FakeText ? n.text : n.kids.map(text).join(''));
-const all = (n) => (n instanceof FakeEl ? [n, ...n.kids.flatMap(all)] : []);
-const cls = (n, c) => all(n).filter((x) => x.className.split(' ').includes(c));
 
 test('ringGeometry: 0.72 at defaults, ring math', () => {
   const g = C.ringGeometry({ value: 0.72 });

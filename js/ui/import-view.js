@@ -248,7 +248,7 @@ function duplicatesBlock(app) {
   const rows = duplicateRows(st);
   if (!rows.length) return null;
   return h('div', { class: 'mdups' },
-    h('div', { class: 'label' }, 'Possible duplicates'),
+    h('h3', { class: 'sec-title' }, 'Possible duplicates'),
     h('p', { class: 'muted' }, 'You already logged a workout on these days. They are skipped unless you switch them on.'),
     rows.map((d) => h('label', { class: 'mrow mdup' },
       h('span', { class: 'grow' }, `${d.name} · ${d.day}`),

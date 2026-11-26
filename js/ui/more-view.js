@@ -10,10 +10,12 @@ import {
   moveHabit, nextSort, scheduleLabel, WEEKDAY_NAMES, signOutWarning,
 } from '../lib/more-forms.js';
 import { sheet } from './components.js';
+import { valueRow } from './blocks.js';
 import { localDateKey } from '../lib/dates.js';
 import * as repo from '../data/repo.js';
 import { importBody, resetImport } from './import-view.js';
 import { currentTheme, writeTheme, applyTheme, themeColor, applyThemeColor } from '../lib/theme.js';
+import { currentLayout, writeLayout, applyLayout } from '../lib/layout.js';
 
 // UI-only state; survives re-renders but not reloads. drafts: 'form.field' -> unsaved value.
 const ui = {
@@ -357,24 +359,37 @@ const RUNBOOK = [
 ];
 const runbookBody = () => h('ol', { class: 'mlist' }, RUNBOOK.map((t) => h('li', {}, t)));
 
-// ---- Theme (per device, localStorage) ----
+// ---- Appearance: layout and colours (per device, localStorage) ----
+const LAYOUT_OPTIONS = [['list', 'Clean list'], ['tiles', 'Tiles'], ['big', 'Big type']];
 const THEMES = [['dark', 'Dark'], ['light', 'Light'], ['system', 'System']];
-function themeStore() { try { return localStorage; } catch { return null; } }
+function prefStore() { try { return localStorage; } catch { return null; } }
 function setTheme(value) {
-  writeTheme(themeStore(), value);
+  writeTheme(prefStore(), value);
   applyTheme(document.documentElement, value);
   const prefersLight = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: light)').matches;
   applyThemeColor(document, themeColor(value, prefersLight));
 }
-function themeRow(app) {
-  const cur = currentTheme(document.documentElement, themeStore());
-  return h('section', { class: 'msec mtheme', 'aria-label': 'Theme' },
-    h('div', { class: 'label mtheme-label' }, 'Theme'),
-    h('div', { class: 'seg', role: 'group', 'aria-label': 'Theme' },
-      THEMES.map(([v, text]) => h('button', {
-        type: 'button', class: 'tap', 'aria-pressed': cur === v ? 'true' : 'false',
-        onClick: () => { setTheme(v); app.rerender(); },
+function setLayout(value) {
+  writeLayout(prefStore(), value);
+  applyLayout(document.documentElement, value);
+}
+// A labelled row of mutually exclusive buttons; the current one has aria-pressed="true".
+function segmented(label, options, current, onPick) {
+  return h('div', { class: 'mappear-row' },
+    h('div', { class: 'mappear-label' }, label),
+    h('div', { class: 'seg', role: 'group', 'aria-label': label },
+      options.map(([v, text]) => h('button', {
+        type: 'button', class: 'tap', 'aria-pressed': current === v ? 'true' : 'false',
+        onClick: () => onPick(v),
       }, text))));
+}
+function appearanceRow(app) {
+  const el = document.documentElement;
+  const store = prefStore();
+  return h('section', { class: 'msec mappear', 'aria-label': 'Appearance' },
+    h('h2', { class: 'mappear-title' }, 'Appearance'),
+    segmented('Layout', LAYOUT_OPTIONS, currentLayout(el, store), (v) => { setLayout(v); app.rerender(); }),
+    segmented('Colours', THEMES, currentTheme(el, store), (v) => { setTheme(v); app.rerender(); }));
 }
 
 // ---- Gym rows: habit picker, routines, exercises, import ----
@@ -398,11 +413,11 @@ function gymRows(app) {
   sel.value = list.some((x) => x.id === cur) ? cur : '';
   sel.addEventListener('change', () => setGymHabit(app, sel.value));
   return h('section', { class: 'msec mgym', 'aria-label': 'Gym' },
-    h('label', { class: 'mlabel mgrow' }, h('span', { class: 'cap' }, 'Gym habit'), sel,
+    h('label', { class: 'mlabel mgrow' }, h('span', { class: 'sec-title' }, 'Gym habit'), sel,
       h('span', { class: 'muted' }, 'Finishing a workout checks this habit.')),
     notice('gym'),
-    h('a', { class: 'mhead mlink', href: '#/gym' }, h('span', { class: 'grow' }, 'Routines'), h('span', { class: 'mchev', 'aria-hidden': 'true' }, '›')),
-    h('a', { class: 'mhead mlink', href: '#/gym/exercises' }, h('span', { class: 'grow' }, 'Exercises'), h('span', { class: 'mchev', 'aria-hidden': 'true' }, '›')));
+    valueRow({ href: '#/gym', label: 'Routines', value: null }),
+    valueRow({ href: '#/gym/exercises', label: 'Exercises', value: null }));
 }
 
 const striveBody = (app) => importBody(app);
@@ -447,14 +462,14 @@ export function renderMore(root, app) {
   root.replaceChildren(
     h('div', { class: 'more' },
       h('h1', {}, 'More'),
-      themeRow(app),
+      appearanceRow(app),
       gymRows(app),
       sections(app).map(([id, title, summary, body]) => {
         const open = ui.open === id;
         return h('section', { class: `msec${open ? ' is-open' : ''}`, 'aria-label': title },
-          h('button', { type: 'button', class: 'mhead', 'aria-expanded': open ? 'true' : 'false', onClick: () => toggleSection(app, id) },
-            h('span', { class: 'grow' }, title),
-            summary ? h('span', { class: 'muted num' }, summary) : null,
+          h('button', { type: 'button', class: 'tap blk-row', 'aria-expanded': open ? 'true' : 'false', onClick: () => toggleSection(app, id) },
+            h('span', { class: 'ellip' }, title),
+            summary ? h('span', { class: 'num blk-val' }, summary) : null,
             h('span', { class: 'mchev', 'aria-hidden': 'true' }, '›')),
           open ? h('div', { class: 'mbody' }, body(app)) : null);
       })));
