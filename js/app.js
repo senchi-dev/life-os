@@ -28,6 +28,7 @@ import { createGymRuntime } from './lib/gym-runtime.js';
 import { refreshSnapshot, clearSnapshotCache } from './lib/snapshot-cache.js';
 import { readTheme, applyTheme, themeColor, applyThemeColor, currentTheme, watchSystemTheme } from './lib/theme.js';
 import { readLayout, applyLayout } from './lib/layout.js';
+import { watchSwUpdate } from './lib/sw-update.js';
 
 const ROUTES = ['today', 'gym', 'workout', 'exercise', 'calendar', 'review', 'more'];
 const VIEWS = {
@@ -121,6 +122,7 @@ async function start(root, setBanner) {
   watchSystemTheme(lightMq, () => currentTheme(document.documentElement, themeStore), (c) => applyThemeColor(document, c));
 
   if ('serviceWorker' in navigator) {
+    watchSwUpdate(navigator.serviceWorker, document, () => location.reload());
     navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
   }
 

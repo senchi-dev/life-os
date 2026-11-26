@@ -65,6 +65,13 @@ test('layout is read at boot and applied before the first render', () => {
   assert.ok(render >= 0 && apply < render, 'layout applied before the first rerender(');
 });
 
+test('a new service worker version reloads the app once (watchSwUpdate before register)', () => {
+  assert.match(src, /watchSwUpdate\(navigator\.serviceWorker, document,/);
+  const watch = src.search(/watchSwUpdate\(navigator\.serviceWorker/);
+  const reg = src.search(/serviceWorker\.register\(/);
+  assert.ok(watch >= 0 && watch < reg, 'watcher installed before register');
+});
+
 test('rerender mounts views through mountView and sets body[data-route]', () => {
   const b = body('rerender');
   assert.match(b, /mountView\(/);
